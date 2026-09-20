@@ -298,12 +298,27 @@ var REALM = { // domain -> realm. the small two-column table. editable at runtim
   House:"Personal", Travel:"Personal", Reading:"Personal", Health:"Personal",
   Errands:"Personal", Study:"Personal"
 };
+// Work before Personal, then alphabetical. Sorting on the realm's NAME would put
+// Personal first, which is not what the spec says or what reads naturally.
+function realmRank(d){ var r=REALM[d]; return r==="Work" ? 0 : r==="Personal" ? 1 : 2; }
+function byRealmThenName(a,b){
+  var ra=realmRank(a), rb=realmRank(b);
+  return ra===rb ? a.localeCompare(b) : ra-rb;
+}
+// Every domain the mapping table knows about. The picker offers all of these, so a
+// domain you emptied out is still one keystroke away.
 function domains(){
   var seen={}, out=[];
   Object.keys(REALM).forEach(function(d){ if(!seen[d]){seen[d]=1; out.push(d);} });
   state.items.forEach(function(it){ if(it.domain && !seen[it.domain]){ seen[it.domain]=1; out.push(it.domain);} });
-  return out.sort(function(a,b){ var ra=REALM[a]||"zz", rb=REALM[b]||"zz";
-    return ra===rb ? a.localeCompare(b) : ra.localeCompare(rb); });
+  return out.sort(byRealmThenName);
+}
+// Only the domains something is actually filed under. A filter for an empty domain
+// is a button that can only ever show you nothing.
+function usedDomains(){
+  var seen={};
+  state.items.forEach(function(it){ if(it.kind==="task" && it.domain) seen[it.domain]=1; });
+  return domains().filter(function(d){ return seen[d]; });
 }
 
 var uid=0; function nid(){ return "n"+(++uid); }
@@ -1365,9 +1380,7 @@ function dismissed(){ try{ return localStorage.getItem("checkmate.tip")==="1"; }
 function viewGrouped(main){
   var list=tasks();
   var byDom={}; list.forEach(function(it){ var k=it.domain||"— no domain"; (byDom[k]=byDom[k]||[]).push(it); });
-  var keys=Object.keys(byDom).sort(function(a,b){
-    var ra=REALM[a]||"zz", rb=REALM[b]||"zz";
-    return ra===rb ? a.localeCompare(b) : ra.localeCompare(rb); });
+  var keys=Object.keys(byDom).sort(byRealmThenName);
   if(!keys.length){ main.appendChild(el("div","empty","Nothing here with these filters.")); return; }
   keys.forEach(function(k){
     var h=el("div","grouphead"); h.appendChild(el("span",null,k));
@@ -1564,7 +1577,7 @@ function renderStrip(){
   s.appendChild(el("span","sep"));
   var counts={}; state.items.forEach(function(it){ if(it.kind==="task"&&it.state!=="x"&&it.domain)
     counts[it.domain]=(counts[it.domain]||0)+1; });
-  domains().filter(function(d){ return state.realm==="All" || REALM[d]===state.realm; }).forEach(function(d){
+  usedDomains().filter(function(d){ return state.realm==="All" || REALM[d]===state.realm; }).forEach(function(d){
     var b=el("button","dchip",d+(counts[d]?"  "+counts[d]:""));
     b.setAttribute("aria-pressed",state.domain===d?"true":"false");
     b.addEventListener("click",function(){ state.domain = state.domain===d?null:d; render(); });
