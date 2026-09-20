@@ -196,7 +196,7 @@ body.grabbing main{padding-bottom:170px}
 
 /* ---------- property drawer ---------- */
 .drawer{margin:4px 0 10px 31px;border:1px solid var(--rule);border-radius:5px;background:var(--surface);padding:9px 12px 11px}
-.dhead{display:flex;align-items:center;gap:8px;margin-bottom:9px;padding-bottom:7px;border-bottom:1px solid var(--rule-2)}
+.dhead{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px;padding-bottom:9px;border-bottom:1px solid var(--rule-2)}
 .dhead .lab{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
 .dhead .who{font-size:12px;color:var(--ink-2);flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .xbtn{flex:0 0 auto;font-family:var(--mono);font-size:14px;line-height:1;color:var(--ink-3);border:1px solid var(--rule);border-radius:3px;padding:2px 7px}
@@ -322,6 +322,15 @@ function usedDomains(){
 }
 
 var uid=0; function nid(){ return "n"+(++uid); }
+var DEFAULT_IMP=3;                     // new tasks start here. Nothing already
+                                       // written is touched by this.
+function newTask(props){
+  var o=props||{};
+  o.kind="task";
+  if(o.state===undefined) o.state=" ";
+  if(o.imp===undefined) o.imp=DEFAULT_IMP;
+  return T(o);
+}
 function T(o){ if(!o.id) o.id=nid(); o.kind=o.kind||"task"; o.state=o.state||" ";
   o.domain=o.domain||null; o.imp=o.imp||null; o.est=o.est||null; o.due=o.due||null;
   o.link=o.link||null; o.details=o.details||""; o.slot=o.slot||null; o.sched=o.sched||false; o.depth=o.depth||0; return o; }
@@ -1057,7 +1066,10 @@ function buildRow(it){
   } else if(it.kind==="note"){
     g.textContent="[ ]"; g.className="gutter ghost"; g.title="Make this a task";
     g.setAttribute("aria-label","Make this line a task");
-    g.addEventListener("click",function(){ it.kind="task"; it.state=" "; save(); render(); });
+    g.addEventListener("click",function(){
+      it.kind="task"; it.state=" ";
+      if(it.imp==null) it.imp=DEFAULT_IMP;
+      save(); render(); });
   } else { g.textContent=""; g.className="gutter ghost"; }
   row.appendChild(g);
 
@@ -1093,7 +1105,11 @@ function buildRow(it){
   if(it.kind==="task"){
     var meta=el("span","meta");
     if(it.domain) meta.appendChild(chip("m m-dom",it.domain,it));
-    if(it.imp) meta.appendChild(chip("m m-imp i"+it.imp,"!"+it.imp,it));
+    if(it.imp){
+      var ic=chip("m m-imp i"+it.imp,String(it.imp),it);
+      ic.title="Priority "+it.imp;
+      meta.appendChild(ic);
+    }
     if(it.est) meta.appendChild(chip("m m-est","~"+fmtEst(it.est),it));
     if(it.due) meta.appendChild(chip("m m-due"+(isUrgent(it)?" urgent":""),fmtDue(it.due),it));
     if(it.slot) meta.appendChild(chip("m m-slot","→ "+it.slot,it));
@@ -1128,6 +1144,7 @@ function commitText(it,raw){
     it.kind="task";
     it.state=(m[1].toLowerCase()===" "?" ":m[1].toLowerCase());
     it.text=m[2];
+    if(it.imp==null) it.imp=DEFAULT_IMP;
   } else { it.text=t; }
   save();
   return before !== (it.kind+"|"+it.state);
@@ -1174,9 +1191,10 @@ function onKey(ev,it,node){
     }
     ev.preventDefault(); commitText(it,getText(node));
     var nk = (it.kind==="task" && !hard) ? "task" : "note";
-    var n=T({ kind:nk, state:" ", text:"",
-              domain: nk==="task" ? it.domain : null,
-              depth: it.kind==="head" ? 0 : it.depth });
+    var n = nk==="task"
+      ? newTask({ text:"", domain:it.domain, depth: it.kind==="head" ? 0 : it.depth })
+      : T({ kind:"note", state:" ", text:"", domain:null,
+            depth: it.kind==="head" ? 0 : it.depth });
     var i=state.items.indexOf(it); state.items.splice(i+1,0,n); save(); render(n.id);
     return;
   } else if(ev.key==="Backspace" && getText(node)===""){
@@ -1217,13 +1235,38 @@ function openItem(){
 
 function buildDrawer(it){
   var d=el("div","drawer");
+  // Actions sit at the top. The drawer opens directly under its own line, so a header
+  // repeating that line's text would only say what is already on screen above it.
+  // Delete is parked at the far end, away from the two buttons you actually reach for.
   var dh=el("div","dhead");
-  dh.appendChild(el("span","lab","Properties"));
-  dh.appendChild(el("span","who",it.text||"untitled"));
+
+  var del=el("button","act danger","Delete");
+  del.addEventListener("click",function(){
+    snapshot("deleting a line");
+    var i=state.items.indexOf(it); state.items.splice(i,1);
+    state.open=null; save(); render(); });
+  dh.appendChild(del);
+
+  dh.appendChild(el("span","spacer"));
+
+  var sch=el("button","act"+(it.sched?" primary":""), it.sched ? "Marked to schedule" : "Schedule?");
+  sch.title = it.sched
+    ? "Claude books this when you ask it to schedule your marked items"
+    : "Marks it for Claude to book. Nothing goes on your calendar now.";
+  sch.addEventListener("click",function(){
+    readDrawer(it); it.sched=!it.sched; if(it.sched) it.slot=null; save(); render();
+  });
+  dh.appendChild(sch);
+
+  var sv=el("button","act save","Save");
+  sv.addEventListener("click",function(){ closeDrawer(it,true); });
+  dh.appendChild(sv);
+
   var x=el("button","xbtn","✕"); x.title="Save and close (Esc)";
   x.setAttribute("aria-label","Save and close properties");
   x.addEventListener("click",function(){ closeDrawer(it,false); });
-  dh.appendChild(x); d.appendChild(dh);
+  dh.appendChild(x);
+  d.appendChild(dh);
   var g=el("div","dgrid");
 
   var dwrap=el("div","domrow full");
@@ -1249,7 +1292,7 @@ function buildDrawer(it){
 
   var f2=el("div","f"); f2.appendChild(el("label",null,"Importance"));
   var seg=el("div","seg");
-  [1,2,3].forEach(function(n){ var b=el("button",null,"!"+n);
+  [1,2,3].forEach(function(n){ var b=el("button",null,String(n));
     b.setAttribute("aria-pressed",it.imp===n?"true":"false");
     b.addEventListener("click",function(){ readDrawer(it); it.imp = it.imp===n?null:n; save(); render(); });
     seg.appendChild(b); });
@@ -1293,25 +1336,9 @@ function buildDrawer(it){
   d.appendChild(g);
 
   var foot=el("div","dfoot");
-  var sv=el("button","act save","Save");
-  sv.addEventListener("click",function(){ closeDrawer(it,true); });
-  foot.appendChild(sv);
-
-  var sch=el("button","act"+(it.sched?" primary":""), it.sched ? "Marked to schedule" : "Schedule?");
-  sch.addEventListener("click",function(){
-    readDrawer(it); it.sched=!it.sched; if(it.sched) it.slot=null; save(); render();
-  });
-  foot.appendChild(sch);
   foot.appendChild(el("span","hint", it.sched
-    ? "Ask Claude to schedule your marked items and it books a free gap."
-    : "Marks it for Claude to book. Nothing goes on your calendar now."));
-
-  var del=el("button","act danger","Delete");
-  del.addEventListener("click",function(){
-    snapshot("deleting a line");
-    var i=state.items.indexOf(it); state.items.splice(i,1);
-    state.open=null; save(); render(); });
-  foot.appendChild(el("span","spacer")); foot.appendChild(del);
+    ? "Marked. Ask Claude to schedule your marked items and it books a free gap."
+    : "Esc saves and closes \u2014 nothing here is lost by tapping away."));
   d.appendChild(foot);
   return d;
 }
@@ -1370,7 +1397,9 @@ function viewDoc(main){
     b.appendChild(el("span",null,spec[1]));
     b.title=spec[2];
     b.addEventListener("click",function(){
-      var nn=T({kind:spec[0],state:" ",text:""}); state.items.push(nn); save(); render(nn.id);
+      var nn = spec[0]==="task" ? newTask({text:""})
+                                : T({kind:"note",state:" ",text:""});
+      state.items.push(nn); save(); render(nn.id);
     });
     arow.appendChild(b);
   });
@@ -1394,9 +1423,9 @@ function viewPriority(main){
   if(!list.length){ main.appendChild(el("div","empty","Nothing here with these filters.")); return; }
   var buckets={"1":[],"2":[],"3":[],"0":[]};
   list.forEach(function(it){ buckets[String(it.imp||0)].push(it); });
-  [["1","!1","important"],
-   ["2","!2","secondary"],
-   ["3","!3","someday"],
+  [["1","1","important"],
+   ["2","2","secondary"],
+   ["3","3","someday"],
    ["0","unrated","no importance set"]].forEach(function(b){
     var arr=buckets[b[0]];
     if(!arr.length) return;
@@ -1609,7 +1638,8 @@ document.addEventListener("keydown",function(ev){
 Array.prototype.forEach.call(document.querySelectorAll(".foot-in .addline"),function(b){
   b.addEventListener("click",function(){
     if(state.view!=="doc"){ state.view="doc"; state.open=null; }
-    var nn=T({kind:b.dataset.add,state:" ",text:""});
+    var nn = b.dataset.add==="task" ? newTask({text:""})
+                                    : T({kind:"note",state:" ",text:""});
     state.items.push(nn); save(); render(nn.id);
     var node=document.querySelector('.row[data-id="'+nn.id+'"] .txt');
     if(node) node.scrollIntoView({block:"center"});
