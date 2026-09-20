@@ -445,6 +445,27 @@ function loadCfg(){
     cfg.url=c.url||""; cfg.token=c.token||""; }catch(e){}
 }
 function saveCfg(){ try{ localStorage.setItem("checkmate.cfg",JSON.stringify(cfg)); }catch(e){} }
+
+// A setup link carries the Worker URL and token in the fragment: #s=<base64 url|token>.
+// Fragments are never sent to a server. We read it once, save it, and strip it from
+// the address bar so it does not linger in history or get shared by accident.
+function takeSetupLink(){
+  var m=/^#s=(.+)$/.exec(location.hash||"");
+  if(!m) return false;
+  var got=false;
+  try{
+    var d=decodeURIComponent(escape(atob(decodeURIComponent(m[1]))));
+    var i=d.indexOf("|");
+    if(i>0){ cfg.url=d.slice(0,i); cfg.token=d.slice(i+1); saveCfg(); got=true; }
+  }catch(e){}
+  try{ history.replaceState(null,"",location.pathname+location.search); }catch(e){}
+  return got;
+}
+function setupLink(){
+  var raw=cfg.url+"|"+cfg.token;
+  var b64=btoa(unescape(encodeURIComponent(raw)));
+  return cfg.url.replace(/\/+$/,"")+"/#s="+encodeURIComponent(b64);
+}
 function configured(){ return !!(cfg.url && cfg.token); }
 
 function api(path,opts){
@@ -541,6 +562,22 @@ function settingsPanel(){
       state.settings=false; setStatus("local"); render();
     });
     foot.appendChild(dl);
+  }
+  if(configured()){
+    var lk=el("button","act","Setup link for another device");
+    lk.addEventListener("click",function(){
+      var box=document.getElementById("setuplink");
+      if(box){ box.remove(); return; }
+      var wrap=el("div","f full"); wrap.id="setuplink";
+      wrap.appendChild(el("label",null,"Open this on your phone \u2014 it connects in one tap"));
+      var i=el("input"); i.readOnly=true; i.value=setupLink();
+      i.addEventListener("focus",function(){ i.select(); });
+      wrap.appendChild(i);
+      wrap.appendChild(el("div","hint","Treat it like a password: it carries your token. The app removes it from the address bar as soon as it is used."));
+      p.insertBefore(wrap, foot);
+      i.focus();
+    });
+    foot.appendChild(lk);
   }
   foot.appendChild(el("span","hint","Stored in this browser only. Nothing is sent anywhere until you connect."));
   var cl=el("button","act","Close");
@@ -1520,8 +1557,10 @@ document.getElementById("rawtog").addEventListener("click",function(){
 });
 
 loadCfg();
+var fromLink=takeSetupLink();
 render();
-if(configured()) pull(); else setStatus("local");
+if(configured()) pull().then(function(okd){ if(fromLink && okd) toast("Connected"); });
+else setStatus("local");
 
 document.getElementById("undo").addEventListener("click",undo);
 document.getElementById("selbtn").addEventListener("click",function(){
