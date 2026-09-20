@@ -62,7 +62,15 @@ input,select,textarea{font:inherit;color:inherit}
 .strip::-webkit-scrollbar{display:none}
 .dchip{font-family:var(--mono);font-size:11px;color:var(--ink-2);border:1px solid var(--rule);border-radius:10px;padding:2px 8px;white-space:nowrap;background:var(--surface)}
 .dchip[aria-pressed="true"]{color:var(--surface);background:var(--ink);border-color:var(--ink)}
-.dchip.realm[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+/* Work and Personal read as one control, so they share one outline. */
+.realmpill{display:inline-flex;flex:0 0 auto;border:1px solid var(--ink-2);border-radius:11px;
+  overflow:hidden;background:var(--surface)}
+.realmpill .dchip.realm{border:0;border-radius:0;padding:2px 13px;background:transparent;color:var(--ink-2)}
+/* a hairline keeps the two halves legible when both are pressed and the whole
+   pill is filled; grey-on-alpha reads on either background, in either theme */
+.realmpill .dchip.realm + .dchip.realm{border-left:1px solid rgba(128,128,128,.4)}
+.realmpill .dchip.realm[aria-pressed="true"]{background:var(--accent);color:var(--on-accent)}
+.realmpill .dchip.realm:not([aria-pressed="true"]):hover{color:var(--ink)}
 .sep{width:1px;height:16px;background:var(--rule);flex:0 0 auto;margin:0 3px}
 
 /* ---------- document ---------- */
@@ -248,6 +256,46 @@ pre.raw{margin:10px 0 0;padding:12px;background:var(--surface);border:1px solid 
 .foot-in{max-width:820px;margin:0 auto;padding:7px 16px;display:flex;gap:12px;flex-wrap:wrap;align-items:center}
 .k{font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
 .k b{color:var(--ink-2);font-weight:500;border:1px solid var(--rule);border-radius:2px;padding:0 3px}
+.helpbtn{flex:0 0 auto;font-family:var(--mono);font-size:12px;line-height:1;color:var(--ink-3);
+  border:1px solid var(--rule);border-radius:50%;width:22px;height:22px;background:var(--surface)}
+.helpbtn:hover{color:var(--accent);border-color:var(--accent)}
+
+/* ---------- shortcut sheet ---------- */
+.sheet[hidden]{display:none!important}
+.sheet{position:fixed;inset:0;z-index:90;background:rgba(20,22,26,.42);
+  display:flex;align-items:center;justify-content:center;padding:18px}
+.sheet-in{background:var(--surface);border:1px solid var(--rule);border-radius:6px;
+  max-width:520px;width:100%;max-height:84vh;overflow-y:auto;padding:14px 16px 16px}
+.sheet-top{display:flex;align-items:center;font-family:var(--mono);font-size:10px;
+  letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);margin-bottom:10px}
+.sheet-top button{margin-left:auto;color:var(--ink-3);font-size:13px;line-height:1;padding:2px 3px}
+.sheet h4{margin:13px 0 5px;font-family:var(--mono);font-size:10px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--accent);font-weight:500}
+.sheet h4 em{font-style:normal;color:var(--ink-3);text-transform:none;letter-spacing:0;opacity:.8}
+.sheet dl{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;margin:0;
+  font-size:12px;line-height:1.45;color:var(--ink-2)}
+.sheet dt{font-family:var(--mono);font-size:11px;color:var(--ink-3);white-space:nowrap}
+.sheet dd{margin:0}
+.sheet b{font-family:var(--mono);color:var(--ink);font-weight:500;
+  border:1px solid var(--rule);border-radius:2px;padding:0 3px}
+.sheet-foot{margin:14px 0 0;font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
+/* show-one-or-the-other utilities. !important because .sheet dl sets display:grid
+   at a higher specificity, and these have to win wherever they are used. */
+.touchonly{display:none!important}
+@media (hover:none){
+  .kbdonly{display:none!important}
+  .touchonly{display:revert!important}
+  .sheet dl.touchonly{display:grid!important}
+  .sheet dl{grid-template-columns:1fr}
+}
+@media (max-width:420px){ .sheet dl{grid-template-columns:1fr} }
+/* stacked, a term and its definition have to read as one pair */
+@media (hover:none),(max-width:420px){
+  .sheet dl{gap:0}
+  .sheet dt{margin-top:10px}
+  .sheet dt:first-child{margin-top:0}
+  .sheet dd{margin-top:2px}
+}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 
@@ -282,11 +330,60 @@ pre.raw{margin:10px 0 0;padding:12px;background:var(--surface);border:1px solid 
 <div class="foot"><div class="foot-in">
   <button class="addline" data-add="note"><span class="plus">+</span><span>text</span></button>
   <button class="addline" data-add="task"><span class="plus">+</span><span>task</span></button>
-  <span class="k"><b>click</b> a bracket to cycle <b>[ ]</b> &rarr; <b>[-]</b> &rarr; <b>[x]</b></span>
-  <span class="k"><b>&#8942;</b> properties &middot; <b>Esc</b> closes</span>
-  <span class="k"><b>Enter</b> next task &middot; on text, a new line &middot; <b>Ctrl+Enter</b> ends the block</span>
-  <span class="k"><b>Ctrl &uarr;&darr;</b> move &middot; <b>Ctrl &rarr;&larr;</b> indent &middot; drag the <b>&#8759;</b></span>
+  <span class="k" id="foothint"></span>
+  <span class="spacer"></span>
+  <button class="helpbtn" id="helpbtn" aria-label="Shortcuts" title="Shortcuts (?)">?</button>
 </div></div>
+
+<div class="sheet" id="help" hidden>
+  <div class="sheet-in" role="dialog" aria-modal="true" aria-label="Shortcuts">
+    <div class="sheet-top"><span>shortcuts</span><button id="helpx" aria-label="Close">&#10005;</button></div>
+
+    <h4>the line</h4>
+    <dl>
+      <dt class="kbdonly">click a bracket</dt><dt class="touchonly">tap a bracket</dt>
+      <dd>cycle <b>[ ]</b> &rarr; <b>[-]</b> waiting &rarr; <b>[x]</b> done</dd>
+      <dt class="kbdonly">click the ghost <b>[ ]</b></dt><dt class="touchonly">tap the ghost <b>[ ]</b></dt>
+      <dd>turn a line of text into a task</dd>
+      <dt><b>&#8942;</b></dt><dd>open properties &mdash; domain, priority, estimate, due date, link, notes</dd>
+      <dt><b>&#8801;</b></dt><dd>this line has notes behind it</dd>
+    </dl>
+
+    <h4>writing</h4>
+    <dl class="kbdonly">
+      <dt><b>Enter</b></dt><dd>on a task, start the next one; on plain text, a new line</dd>
+      <dt><b>Ctrl+Enter</b></dt><dd>end a block of text</dd>
+      <dt><b>&uarr;</b> <b>&darr;</b></dt><dd>move the caret between lines</dd>
+      <dt><b>Esc</b></dt><dd>close the properties panel, saving what you typed</dd>
+    </dl>
+    <dl class="touchonly">
+      <dt>tap a line</dt><dd>edit it</dd>
+      <dt>tap away</dt><dd>close the properties panel, saving what you typed</dd>
+    </dl>
+
+    <h4>arranging <em>&mdash; Document view only</em></h4>
+    <dl class="kbdonly">
+      <dt><b>Ctrl</b> <b>&uarr;</b> <b>&darr;</b></dt><dd>move a line, and anything nested under it</dd>
+      <dt><b>Ctrl</b> <b>&rarr;</b> <b>&larr;</b></dt><dd>indent, outdent</dd>
+      <dt><b>Tab</b> <b>Shift+Tab</b></dt><dd>the same, while editing a line</dd>
+    </dl>
+    <dl class="touchonly">
+      <dt>drag <b>&#8801;</b></dt><dd>move a line by hand</dd>
+      <dt>tap <b>&#8801;</b></dt><dd>buttons for indent, outdent and nudge</dd>
+    </dl>
+
+    <h4>working in bulk</h4>
+    <dl>
+      <dt><b>Select</b></dt><dd>then pick rows; <b class="kbdonly">Shift</b><span class="kbdonly">-click for a range</span><span class="touchonly">tap the first and last of a run</span></dd>
+      <dt class="kbdonly"><b>Delete</b></dt><dd class="kbdonly">remove the selected rows</dd>
+      <dt class="kbdonly"><b>Ctrl+Z</b> / <b>undo</b></dt>
+      <dt class="touchonly"><b>undo</b>, up top</dt>
+      <dd>step back, up to four times</dd>
+    </dl>
+
+    <p class="sheet-foot kbdonly">Press <b>?</b> for this sheet, <b>Esc</b> to close it.</p>
+  </div>
+</div>
 
 <script>
 (function(){
@@ -369,7 +466,15 @@ var SEED = [
   T({text:"Sort out the garage shelving",domain:"House",imp:3,est:180})
 ];
 
-var state = { items:SEED, view:"doc", realm:"All", domain:null, open:null, raw:false, settings:false, selecting:false, sel:{}, lastTouched:null };
+var state = { items:SEED, view:"doc", rWork:false, rPers:false, domain:null, open:null, raw:false, settings:false, selecting:false, sel:{}, lastTouched:null };
+
+// Work and Personal press independently. Both down, or both up, means the same
+// thing - show everything - so there is no separate "All" to keep in sync.
+function realmFilter(){ return state.rWork===state.rPers ? "All" : (state.rWork ? "Work" : "Personal"); }
+function fixDomain(){
+  var f=realmFilter();
+  if(state.domain && f!=="All" && REALM[state.domain]!==f) state.domain=null;
+}
 
 /* ---------- undo ----------
    Four levels, as specified. A snapshot is just the serialized document, so undo
@@ -680,6 +785,9 @@ function daysOut(due){ if(!due) return null;
   return Math.round((d-TODAY)/86400000); }
 function isUrgent(it){ var d=daysOut(it.due); return d!==null && d<=3; }
 function realmOf(it){ return it.domain ? (REALM[it.domain]||"Personal") : null; }
+// A booked slot is a weekday or ISO date plus a time: "Thu3:15p", "2026-09-22T15:15".
+// Anything looser ("> 4" in prose) is text, not a property.
+var SLOT_RE=/^(?:\d{4}-\d{2}-\d{2}|[A-Z][a-z]{2})[T@]?\d{1,2}(?::\d{2})?(?:[ap]m?)?$/;
 function fmtEst(m){ if(!m) return null; return m>=60 ? (m%60===0 ? (m/60)+"h" : (m/60).toFixed(1)+"h") : m+"m"; }
 function fmtDue(due){ var d=daysOut(due); if(d===null) return null;
   if(d===0) return "today"; if(d===1) return "tomorrow"; if(d<0) return Math.abs(d)+"d late";
@@ -688,7 +796,8 @@ function fmtDue(due){ var d=daysOut(due); if(d===null) return null;
 
 function visible(it){
   if(it.kind!=="task") return state.view==="doc";
-  if(state.realm!=="All" && realmOf(it)!==state.realm) return false;
+  var rf=realmFilter();
+  if(rf!=="All" && realmOf(it)!==rf) return false;
   if(state.domain && it.domain!==state.domain) return false;
   return true;
 }
@@ -1110,8 +1219,13 @@ function buildRow(it){
       ic.title="Priority "+it.imp;
       meta.appendChild(ic);
     }
-    if(it.est) meta.appendChild(chip("m m-est","~"+fmtEst(it.est),it));
-    if(it.due) meta.appendChild(chip("m m-due"+(isUrgent(it)?" urgent":""),fmtDue(it.due),it));
+    // The Document view is for reading the list, so it carries only what
+    // identifies an item: domain, priority, and the marker saying there are
+    // notes behind it. Estimate and due date belong to the views that are
+    // about those things, and are always one tap away in the drawer.
+    var lean = state.view==="doc";
+    if(it.est && !lean) meta.appendChild(chip("m m-est","~"+fmtEst(it.est),it));
+    if(it.due && !lean) meta.appendChild(chip("m m-due"+(isUrgent(it)?" urgent":""),fmtDue(it.due),it));
     if(it.slot) meta.appendChild(chip("m m-slot","→ "+it.slot,it));
     else if(it.sched) meta.appendChild(chip("m m-slot",">?",it));
     if(it.link){ var a=el("a","m m-link","↗ link"); a.href=it.link.url; a.target="_blank"; a.rel="noopener";
@@ -1348,7 +1462,7 @@ function render(focusId,atEnd){
   var main=document.getElementById("main"); main.innerHTML="";
   renderTabs(); renderStrip();
 
-  paintStatus(); paintUndo(); selBar();
+  paintStatus(); paintUndo(); selBar(); footHint();
   document.body.classList.toggle("selecting",!!state.selecting);
   if(state.settings) main.appendChild(settingsPanel());
   if(sync.status==="conflict") main.appendChild(conflictPanel());
@@ -1380,9 +1494,9 @@ function viewDoc(main){
     var tip=el("div","tip");
     tip.appendChild(el("span",null,"\u2022"));
     var t=el("span");
-    t.innerHTML = (window.matchMedia && window.matchMedia("(hover:none)").matches)
-      ? 'Tap a line to edit it. Tap the <b>[ ]</b> in the margin to make it a task. Drag the <b>&#8801;</b> on the right to move it, or tap it for indent and nudge buttons.'
-      : 'Click the <b>[ ]</b> that appears in the margin to turn a line of text into a task. On a task, <b>Enter</b> starts the next task; on plain text it just starts a new line, and <b>Ctrl+Enter</b> ends the block. <b>Ctrl \u2191\u2193</b> moves a line, <b>Ctrl \u2192\u2190</b> indents it.';
+    t.innerHTML = touchUI()
+      ? 'Tap the <b>[ ]</b> in the margin to turn a line into a task. Tap <b>?</b> for everything else.'
+      : 'Click the <b>[ ]</b> in the margin to turn a line into a task. Press <b>?</b> for everything else.';
     tip.appendChild(t);
     var dz=el("button",null,"\u2715"); dz.title="dismiss";
     dz.addEventListener("click",function(){ try{localStorage.setItem("checkmate.tip","1");}catch(e){} render(); });
@@ -1406,6 +1520,27 @@ function viewDoc(main){
   main.appendChild(arow);
 }
 function dismissed(){ try{ return localStorage.getItem("checkmate.tip")==="1"; }catch(e){ return false; } }
+function touchUI(){ return !!(window.matchMedia && window.matchMedia("(hover:none)").matches); }
+
+// One hint, chosen for where you actually are. Everything else lives behind "?".
+function footHint(){
+  var n=document.getElementById("foothint"); if(!n) return;
+  var h;
+  if(sync.status==="conflict")   h="Two versions exist \u2014 take one, or keep yours.";
+  else if(state.raw)             h="The file exactly as it is stored.";
+  else if(state.settings)        h="Your token stays in this browser.";
+  else if(state.selecting)       h="Click rows to select \u00b7 <b>Shift</b>-click for a range";
+  else if(state.open)            h="<b>Esc</b> saves the panel and closes it";
+  else if(state.view!=="doc")    h="Move and indent live in the <b>Document</b> view";
+  else                           h="<b>Enter</b> starts the next task \u00b7 <b>Ctrl+Enter</b> ends a text block";
+  n.innerHTML=h;
+}
+function helpOpen(on){
+  var h=document.getElementById("help"); if(!h) return;
+  if(on===undefined) on=h.hidden;
+  h.hidden=!on;
+  if(on) document.getElementById("helpx").focus();
+}
 
 function viewGrouped(main){
   var list=tasks();
@@ -1425,7 +1560,7 @@ function viewPriority(main){
   list.forEach(function(it){ buckets[String(it.imp||0)].push(it); });
   [["1","1","important"],
    ["2","2","secondary"],
-   ["3","3","someday"],
+   ["3","3","unscheduled"],
    ["0","unrated","no importance set"]].forEach(function(b){
     var arr=buckets[b[0]];
     if(!arr.length) return;
@@ -1582,7 +1717,7 @@ function blockFrom(ls,id){
     if((m2=/\s+!([123])$/.exec(rest))){ o.imp=+m2[1]; rest=rest.slice(0,m2.index); go=true; continue; }
     if((m2=/\s+~([\d.]+[mh])$/.exec(rest))){ o.est=parseEst(m2[1]); rest=rest.slice(0,m2.index); go=true; continue; }
     if((m2=/\s+@(\d{4}-\d{2}-\d{2})$/.exec(rest))){ o.due=m2[1]; rest=rest.slice(0,m2.index); go=true; continue; }
-    if((m2=/\s+>(\S+)$/.exec(rest))){
+    if((m2=/\s+>(\S+)$/.exec(rest)) && (m2[1]==="?"||SLOT_RE.test(m2[1]))){
       if(m2[1]==="?") o.sched=true; else o.slot=m2[1];
       rest=rest.slice(0,m2.index); go=true; continue;
     }
@@ -1618,14 +1753,22 @@ function renderTabs(){
 }
 function renderStrip(){
   var s=document.getElementById("strip"); s.innerHTML="";
-  ["All","Work","Personal"].forEach(function(r){
-    var b=el("button","dchip realm",r); b.setAttribute("aria-pressed",state.realm===r?"true":"false");
-    b.addEventListener("click",function(){ state.realm=r; state.domain=null; render(); }); s.appendChild(b);
+  var pill=el("span","realmpill");
+  pill.setAttribute("role","group"); pill.setAttribute("aria-label","Realm");
+  [["Work","rWork"],["Personal","rPers"]].forEach(function(r){
+    var b=el("button","dchip realm",r[0]);
+    b.setAttribute("aria-pressed",state[r[1]]?"true":"false");
+    b.addEventListener("click",function(){
+      state[r[1]]=!state[r[1]]; fixDomain(); render();
+    });
+    pill.appendChild(b);
   });
+  s.appendChild(pill);
   s.appendChild(el("span","sep"));
+  var rf=realmFilter();
   var counts={}; state.items.forEach(function(it){ if(it.kind==="task"&&it.state!=="x"&&it.domain)
     counts[it.domain]=(counts[it.domain]||0)+1; });
-  usedDomains().filter(function(d){ return state.realm==="All" || REALM[d]===state.realm; }).forEach(function(d){
+  usedDomains().filter(function(d){ return rf==="All" || REALM[d]===rf; }).forEach(function(d){
     var b=el("button","dchip",d+(counts[d]?"  "+counts[d]:""));
     b.setAttribute("aria-pressed",state.domain===d?"true":"false");
     b.addEventListener("click",function(){ state.domain = state.domain===d?null:d; render(); });
@@ -1662,8 +1805,20 @@ document.getElementById("selbtn").addEventListener("click",function(){
   if(state.selecting) selExit();
   else { selEnter(); render(); }
 });
+document.getElementById("helpbtn").addEventListener("click",function(){ helpOpen(); });
+document.getElementById("helpx").addEventListener("click",function(){ helpOpen(false); });
+document.getElementById("help").addEventListener("mousedown",function(ev){
+  if(ev.target===this) helpOpen(false);                 // click the backdrop
+});
+// Capture phase: with the sheet up, Esc belongs to the sheet and must not also
+// close a drawer or leave select mode further down the chain.
+document.addEventListener("keydown",function(ev){
+  if(document.getElementById("help").hidden) return;
+  if(ev.key==="Escape"){ ev.preventDefault(); ev.stopPropagation(); helpOpen(false); }
+},true);
 document.addEventListener("keydown",function(ev){
   var t=document.activeElement, typing = t && (t.isContentEditable || t.tagName==="INPUT" || t.tagName==="TEXTAREA");
+  if(ev.key==="?" && !typing && document.getElementById("help").hidden){ ev.preventDefault(); helpOpen(true); return; }
   if((ev.ctrlKey||ev.metaKey) && ev.key.toLowerCase()==="z" && !typing){ ev.preventDefault(); undo(); }
   if(ev.key==="Escape" && state.selecting) selExit();
   if(state.selecting && (ev.key==="Delete"||ev.key==="Backspace") && !typing){ ev.preventDefault(); selDelete(); }
