@@ -212,6 +212,8 @@ body.grabbing main{padding-bottom:170px}
 .domrow{display:flex;gap:9px;align-items:flex-end;flex-wrap:wrap}
 .estrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .estrow input{flex:0 1 110px;min-width:0}
+.keeprow{display:flex;gap:7px;align-items:center;font-size:12.5px;color:var(--ink-2);margin-top:6px;cursor:pointer}
+.keeprow input{width:auto;flex:0 0 auto;margin:0}
 .seg.estseg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
 .domrow .f{flex:1 1 150px}
 .full{grid-column:1/-1}
@@ -450,21 +452,26 @@ function saveCfg(){ try{ localStorage.setItem("checkmate.cfg",JSON.stringify(cfg
 // Fragments are never sent to a server. We read it once, save it, and strip it from
 // the address bar so it does not linger in history or get shared by accident.
 function takeSetupLink(){
-  var m=/^#s=(.+)$/.exec(location.hash||"");
+  // #s= one-time: apply it, then scrub it out of the address bar.
+  // #k= keep:     leave it in place, for browsers that wipe storage on exit
+  //               (Firefox Focus, private windows) where the link IS the memory.
+  var m=/^#(s|k)=(.+)$/.exec(location.hash||"");
   if(!m) return false;
   var got=false;
   try{
-    var d=decodeURIComponent(escape(atob(decodeURIComponent(m[1]))));
+    var d=decodeURIComponent(escape(atob(decodeURIComponent(m[2]))));
     var i=d.indexOf("|");
     if(i>0){ cfg.url=d.slice(0,i); cfg.token=d.slice(i+1); saveCfg(); got=true; }
   }catch(e){}
-  try{ history.replaceState(null,"",location.pathname+location.search); }catch(e){}
+  if(m[1]==="s"){
+    try{ history.replaceState(null,"",location.pathname+location.search); }catch(e){}
+  }
   return got;
 }
-function setupLink(){
+function setupLink(keep){
   var raw=cfg.url+"|"+cfg.token;
   var b64=btoa(unescape(encodeURIComponent(raw)));
-  return cfg.url.replace(/\/+$/,"")+"/#s="+encodeURIComponent(b64);
+  return cfg.url.replace(/\/+$/,"")+"/#"+(keep?"k":"s")+"="+encodeURIComponent(b64);
 }
 function configured(){ return !!(cfg.url && cfg.token); }
 
@@ -570,10 +577,25 @@ function settingsPanel(){
       if(box){ box.remove(); return; }
       var wrap=el("div","f full"); wrap.id="setuplink";
       wrap.appendChild(el("label",null,"Open this on your phone \u2014 it connects in one tap"));
-      var i=el("input"); i.readOnly=true; i.value=setupLink();
+      var i=el("input"); i.readOnly=true; i.value=setupLink(false);
       i.addEventListener("focus",function(){ i.select(); });
       wrap.appendChild(i);
-      wrap.appendChild(el("div","hint","Treat it like a password: it carries your token. The app removes it from the address bar as soon as it is used."));
+
+      var keepRow=el("label","keeprow");
+      var cb=el("input"); cb.type="checkbox";
+      cb.addEventListener("change",function(){
+        i.value=setupLink(cb.checked);
+        note.textContent = cb.checked
+          ? "The token stays in the link. Bookmark it or save it to the home screen \u2014 every open reconnects, so it works in Firefox Focus and private windows."
+          : "Treat it like a password: it carries your token. The app strips it from the address bar as soon as it is used.";
+        i.focus();
+      });
+      keepRow.appendChild(cb);
+      keepRow.appendChild(el("span",null,"Keep the token in the link (for private browsers that forget)"));
+      wrap.appendChild(keepRow);
+
+      var note=el("div","hint","Treat it like a password: it carries your token. The app strips it from the address bar as soon as it is used.");
+      wrap.appendChild(note);
       p.insertBefore(wrap, foot);
       i.focus();
     });
