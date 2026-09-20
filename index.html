@@ -1,0 +1,1405 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#F6F6F3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#14161A" media="(prefers-color-scheme: dark)">
+<style>
+:root{color-scheme:light dark;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+</style>
+<title>CheckMate</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#F6F6F3; --surface:#FFFFFF; --ink:#15171B; --ink-2:#575D66; --ink-3:#8A9099;
+  --rule:#E3E3DE; --rule-2:#EDEDE9; --accent:#2F5578; --accent-soft:#E6EDF4;
+  --brick:#A8412A; --brick-soft:#F6E7E2; --ochre:#7E6015; --ochre-soft:#F6EEDC;
+  --done:#9AA0A8; --focus:#2F5578; --on-accent:#FFFFFF;
+  --sans:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#14161A; --surface:#1B1E23; --ink:#E6E7E9; --ink-2:#A3A9B2; --ink-3:#6E757F;
+  --rule:#2A2E35; --rule-2:#23262C; --accent:#87AFD6; --accent-soft:#1E2A36;
+  --brick:#E08B73; --brick-soft:#33211C; --ochre:#D6B25E; --ochre-soft:#2C2616;
+  --done:#666D76; --focus:#87AFD6; --on-accent:#14161A;
+}}
+:root[data-theme="dark"]{
+  --bg:#14161A; --surface:#1B1E23; --ink:#E6E7E9; --ink-2:#A3A9B2; --ink-3:#6E757F;
+  --rule:#2A2E35; --rule-2:#23262C; --accent:#87AFD6; --accent-soft:#1E2A36;
+  --brick:#E08B73; --brick-soft:#33211C; --ochre:#D6B25E; --ochre-soft:#2C2616;
+  --done:#666D76; --focus:#87AFD6; --on-accent:#14161A;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:pointer}
+input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:1px;border-radius:2px}
+
+/* ---------- chrome ---------- */
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--bg);border-bottom:1px solid var(--rule)}
+.bar-in{max-width:820px;margin:0 auto;padding:0 16px}
+.bar-top{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding-block:10px 6px}
+.wordmark{font-family:var(--mono);font-size:15px;font-weight:600;letter-spacing:-.02em}
+.wordmark .br{color:var(--accent)}
+.tagline{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.spacer{flex:1 1 auto}
+.rawtog{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);border:1px solid var(--rule);border-radius:3px;padding:3px 7px}
+.rawtog[aria-pressed="true"]{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+
+.tabs{display:flex;gap:2px;overflow-x:auto;padding-block:2px 0;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{font-family:var(--mono);font-size:11.5px;letter-spacing:.03em;color:var(--ink-2);padding:6px 9px;border-bottom:2px solid transparent;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+
+.strip{display:flex;gap:5px;align-items:center;overflow-x:auto;padding-block:8px;scrollbar-width:none;border-top:1px solid var(--rule-2)}
+.strip::-webkit-scrollbar{display:none}
+.dchip{font-family:var(--mono);font-size:11px;color:var(--ink-2);border:1px solid var(--rule);border-radius:10px;padding:2px 8px;white-space:nowrap;background:var(--surface)}
+.dchip[aria-pressed="true"]{color:var(--surface);background:var(--ink);border-color:var(--ink)}
+.dchip.realm[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.sep{width:1px;height:16px;background:var(--rule);flex:0 0 auto;margin:0 3px}
+
+/* ---------- document ---------- */
+main{max-width:820px;margin:0 auto;padding:0 16px;padding-block:14px 80px}
+.grouphead{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-block:18px 6px;padding-bottom:4px;border-bottom:1px solid var(--rule-2);display:flex;gap:8px;align-items:baseline}
+.grouphead .n{color:var(--ink-3);opacity:.7}
+.grouphead:first-child{margin-top:2px}
+
+.row{display:flex;align-items:flex-start;gap:7px;padding:1px 0;border-radius:3px}
+.row.dragging{opacity:.4}
+.row.nope{animation:nope .2s ease}
+@keyframes nope{0%{transform:translateX(0)}30%{transform:translateX(-3px)}65%{transform:translateX(3px)}100%{transform:translateX(0)}}
+.toast{position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(52px + env(safe-area-inset-bottom,0px));
+  background:var(--ink);color:var(--bg);font-family:var(--mono);font-size:11px;
+  padding:6px 11px;border-radius:4px;z-index:60;opacity:0;pointer-events:none;transition:opacity .15s}
+.toast.on{opacity:.95}
+.row.dropabove{box-shadow:inset 0 2px 0 var(--accent)}
+.row.dropbelow{box-shadow:inset 0 -2px 0 var(--accent)}
+.grip{flex:0 0 auto;width:11px;margin-left:-11px;font-family:var(--mono);font-size:11px;line-height:1.45;
+  color:var(--ink-3);opacity:0;cursor:grab;user-select:none;text-align:center}
+.row:hover .grip{opacity:.5}
+.grip:hover{opacity:1}
+@media (max-width:640px){.grip{display:none}}
+.row:hover{background:var(--rule-2)}
+.row.open{background:var(--rule-2)}
+.gutter{flex:0 0 auto;width:24px;text-align:left;white-space:nowrap;font-family:var(--mono);font-size:13px;line-height:1.45;padding-top:1px;color:var(--ink-2);user-select:none}
+.gutter.s-x{color:var(--done)}
+.gutter.s-dash{color:var(--ochre)}
+.gutter.ghost{color:var(--ink-3);opacity:0;transition:opacity .1s}
+.row:hover .gutter.ghost{opacity:.5}
+.gutter.ghost:hover{opacity:1;color:var(--accent)}
+.txt:empty::before{content:"\2026";color:var(--ink-3);opacity:.35;pointer-events:none}
+.body{flex:1 1 auto;min-width:0;padding-top:1px}
+.txt{outline:none;word-wrap:break-word;overflow-wrap:anywhere;white-space:pre-wrap}
+.row.done .txt{color:var(--done);text-decoration:line-through;text-decoration-thickness:1px}
+.row.note .txt{color:var(--ink-2)}
+.row.head .txt{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:500}
+.row.head{margin-top:16px}
+
+/* trailing chips — inline with the text so a task is still one line tall */
+.meta{display:inline;white-space:normal}
+.m{font-family:var(--mono);font-size:10.5px;letter-spacing:.02em;padding:1px 5px;border-radius:3px;margin-left:5px;white-space:nowrap;vertical-align:1px;border:1px solid transparent;cursor:pointer}
+.m-dom{color:var(--accent);background:var(--accent-soft)}
+.m-imp{color:var(--brick);background:var(--brick-soft);font-weight:600}
+.m-imp.i2{opacity:.82}.m-imp.i3{opacity:.62}
+.m-est{color:var(--ink-2);border-color:var(--rule)}
+.m-due{color:var(--ink-2);border-color:var(--rule)}
+.m-due.urgent{color:var(--brick);border-color:var(--brick);font-weight:600}
+.m-slot{color:var(--ochre);background:var(--ochre-soft)}
+.m-link{color:var(--accent);border-color:var(--rule);text-decoration:none}
+.m-note{color:var(--ink-3);border-color:var(--rule)}
+.dots{font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-left:6px;padding:0 3px;opacity:0;vertical-align:1px}
+.row:hover .dots,.row.open .dots{opacity:1}
+
+/* ---------- sync status + settings ---------- */
+.status{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;border:1px solid var(--rule);
+  border-radius:10px;padding:2px 9px;color:var(--ink-3);white-space:nowrap}
+.status.s-saved{color:var(--accent);border-color:var(--accent)}
+.status.s-saving,.status.s-loading{color:var(--ochre);border-color:var(--ochre)}
+.status.s-offline{color:var(--ink-3);border-style:dashed}
+.status.s-conflict{color:var(--brick);border-color:var(--brick);font-weight:600}
+.settings{border:1px solid var(--rule);border-radius:5px;background:var(--surface);
+  padding:11px 12px;margin-bottom:14px}
+.settings.conflict{border-color:var(--brick)}
+.settings .clabel{font-weight:500;margin-bottom:3px}
+
+/* ---------- touch ---------- */
+.foot-in .addline{display:none}
+@media (hover:none){
+  /* no hover means every affordance has to be visible at rest */
+  .gutter.ghost{opacity:.32}
+  .dots{opacity:1}
+  /* thumb-sized tap targets that don't change the line's height */
+  /* 24px of content plus 16px of padding; the negative margin gives the width back */
+  .gutter{width:40px;padding:9px 8px;margin:-9px -8px}
+  .dots{padding:9px 10px;margin:-9px -4px}
+  /* 16px stops iOS zooming the page when a field takes focus */
+  .f input,.f select,.f textarea{font-size:16px}
+  .foot-in .k{display:none}
+  .foot-in .addline{display:flex}
+}
+.handle{display:none;flex:0 0 auto;width:30px;text-align:center;font-family:var(--mono);
+  font-size:15px;line-height:1.45;color:var(--ink-3);opacity:.45;user-select:none;
+  touch-action:none;cursor:grab}
+@media (hover:none){ .handle{display:block} }
+.row.grabbed .handle{opacity:1;color:var(--accent)}
+.row.grabbed{background:var(--accent-soft);box-shadow:0 0 0 1px var(--accent);position:relative;z-index:2}
+body.grabbing main{padding-bottom:170px}
+.row.grabbed .txt{user-select:none;-webkit-user-select:none}
+.grabbar{position:fixed;left:0;right:0;bottom:0;z-index:70;background:var(--ink);
+  padding:8px 12px calc(8px + env(safe-area-inset-bottom,0px));
+  display:flex;gap:6px;align-items:center}
+.grabbar button{flex:1 1 auto;color:var(--bg);font-family:var(--mono);font-size:15px;line-height:1;
+  padding:11px 0;border:1px solid rgba(128,128,128,.35);border-radius:4px}
+.grabbar button.done{flex:0 0 auto;padding-inline:16px;font-size:12px;letter-spacing:.04em}
+.grabbar button:disabled{opacity:.35}
+
+/* ---------- hint + add-line ---------- */
+.tip{display:flex;gap:7px;align-items:baseline;font-family:var(--mono);font-size:10.5px;line-height:1.5;
+  color:var(--ink-3);background:var(--rule-2);border-radius:4px;padding:7px 10px;margin-bottom:12px}
+.tip b{color:var(--accent);font-weight:500}
+.tip button{margin-left:auto;color:var(--ink-3);font-family:var(--mono);font-size:13px;line-height:1;padding:0 2px}
+.addrow{display:flex;gap:6px;align-items:center;margin-top:8px;padding-top:7px;border-top:1px dashed var(--rule)}
+.addline{display:flex;align-items:center;gap:6px;text-align:left;padding:4px 9px;border:1px solid var(--rule);
+  border-radius:3px;color:var(--ink-3);font-family:var(--mono);font-size:11.5px;background:var(--surface)}
+.addline:hover{color:var(--accent);border-color:var(--accent)}
+.addline .plus{flex:0 0 auto;opacity:.7}
+@media (hover:none){ .addrow{display:none} }
+
+/* ---------- property drawer ---------- */
+.drawer{margin:4px 0 10px 31px;border:1px solid var(--rule);border-radius:5px;background:var(--surface);padding:9px 12px 11px}
+.dhead{display:flex;align-items:center;gap:8px;margin-bottom:9px;padding-bottom:7px;border-bottom:1px solid var(--rule-2)}
+.dhead .lab{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.dhead .who{font-size:12px;color:var(--ink-2);flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.xbtn{flex:0 0 auto;font-family:var(--mono);font-size:14px;line-height:1;color:var(--ink-3);border:1px solid var(--rule);border-radius:3px;padding:2px 7px}
+.xbtn:hover{color:var(--ink);border-color:var(--ink-3)}
+.dgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:9px 12px}
+.f{display:flex;flex-direction:column;gap:3px;min-width:0}
+.f label{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.f input,.f select,.f textarea{background:var(--bg);border:1px solid var(--rule);border-radius:3px;padding:4px 6px;font-size:13px;width:100%;min-width:0}
+.f textarea{font-size:13px;line-height:1.45;resize:vertical;min-height:54px}
+.seg{display:flex;gap:0;border:1px solid var(--rule);border-radius:3px;overflow:hidden;width:fit-content}
+.seg button{font-family:var(--mono);font-size:11.5px;padding:4px 10px;color:var(--ink-2);border-right:1px solid var(--rule)}
+.seg button:last-child{border-right:none}
+.seg button[aria-pressed="true"]{background:var(--brick);color:#fff}
+.seg.realmseg button[aria-pressed="true"]{background:var(--accent);color:var(--on-accent)}
+.seg button:disabled{opacity:.4;cursor:default}
+.domrow{display:flex;gap:9px;align-items:flex-end;flex-wrap:wrap}
+.estrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.estrow input{flex:0 1 110px;min-width:0}
+.seg.estseg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.domrow .f{flex:1 1 150px}
+.full{grid-column:1/-1}
+.dfoot{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:11px;padding-top:9px;border-top:1px solid var(--rule-2)}
+.act{font-family:var(--mono);font-size:11px;letter-spacing:.02em;border:1px solid var(--rule);border-radius:3px;padding:4px 9px;color:var(--ink-2)}
+.act.primary{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.act.save{border-color:var(--accent);background:var(--accent);color:var(--on-accent);font-weight:500;padding-inline:14px}
+.act.danger{color:var(--brick);border-color:transparent}
+.hint{font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
+
+/* ---------- matrix ---------- */
+.matrix{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+@media (max-width:560px){.matrix{grid-template-columns:1fr}}
+.quad{border:1px solid var(--rule);border-radius:5px;background:var(--surface);padding:10px 11px;min-height:88px}
+.quad h3{margin:0 0 7px;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:500;display:flex;justify-content:space-between;gap:8px}
+.quad.do{border-left:2px solid var(--brick)}
+.quad.plan{border-left:2px solid var(--accent)}
+.quad.quick{border-left:2px solid var(--ochre)}
+.quad.later{border-left:2px solid var(--rule)}
+.quad h3 em{font-style:normal;color:var(--ink-3);opacity:.7;text-transform:none;letter-spacing:0;font-family:var(--sans);font-size:11px}
+
+/* ---------- raw ---------- */
+pre.raw{margin:10px 0 0;padding:12px;background:var(--surface);border:1px solid var(--rule);border-radius:5px;font-family:var(--mono);font-size:12px;line-height:1.55;overflow-x:auto;color:var(--ink-2);white-space:pre}
+
+.empty{font-family:var(--mono);font-size:11.5px;color:var(--ink-3);padding:14px 0}
+
+/* ---------- footer ---------- */
+.foot{position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-top:1px solid var(--rule);padding:0;z-index:20;padding-bottom:env(safe-area-inset-bottom,0px)}
+.foot-in{max-width:820px;margin:0 auto;padding:7px 16px;display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.k{font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
+.k b{color:var(--ink-2);font-weight:500;border:1px solid var(--rule);border-radius:2px;padding:0 3px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="bar">
+  <div class="bar-in">
+    <div class="bar-top">
+      <span class="wordmark"><span class="br">[</span>x<span class="br">]</span> checkmate</span>
+      <span class="tagline">prototype &middot; sample data</span>
+      <span class="spacer"></span>
+      <button class="status" id="status">local only</button>
+      <button class="rawtog" id="rawtog" aria-pressed="false">Raw file</button>
+    </div>
+    <div class="tabs" role="tablist" id="tabs"></div>
+    <div class="strip" id="strip"></div>
+  </div>
+</div>
+
+<main id="main"></main>
+
+<div class="grabbar" id="grabbar" hidden>
+  <button data-act="out" aria-label="Outdent">&#8676;</button>
+  <button data-act="in" aria-label="Indent">&#8677;</button>
+  <button data-act="up" aria-label="Move up">&uarr;</button>
+  <button data-act="down" aria-label="Move down">&darr;</button>
+  <button data-act="done" class="done">Done</button>
+</div>
+
+<div class="foot"><div class="foot-in">
+  <button class="addline" data-add="note"><span class="plus">+</span><span>text</span></button>
+  <button class="addline" data-add="task"><span class="plus">+</span><span>task</span></button>
+  <span class="k"><b>click</b> a bracket to cycle <b>[ ]</b> &rarr; <b>[-]</b> &rarr; <b>[x]</b></span>
+  <span class="k"><b>&#8942;</b> properties &middot; <b>Esc</b> closes</span>
+  <span class="k"><b>Enter</b> next task &middot; on text, a new line &middot; <b>Ctrl+Enter</b> ends the block</span>
+  <span class="k"><b>Ctrl &uarr;&darr;</b> move &middot; <b>Ctrl &rarr;&larr;</b> indent &middot; drag the <b>&#8759;</b></span>
+</div></div>
+
+<script>
+(function(){
+"use strict";
+var TODAY = new Date(2026,8,19); // Sat Sep 19 2026
+
+var REALM = { // domain -> realm. the small two-column table. editable at runtime.
+  Alcedine:"Work", ContractSafe:"Work", Legal:"Work", Finance:"Work", Hiring:"Work",
+  House:"Personal", Travel:"Personal", Reading:"Personal", Health:"Personal",
+  Errands:"Personal", Study:"Personal"
+};
+function domains(){
+  var seen={}, out=[];
+  Object.keys(REALM).forEach(function(d){ if(!seen[d]){seen[d]=1; out.push(d);} });
+  state.items.forEach(function(it){ if(it.domain && !seen[it.domain]){ seen[it.domain]=1; out.push(it.domain);} });
+  return out.sort(function(a,b){ var ra=REALM[a]||"zz", rb=REALM[b]||"zz";
+    return ra===rb ? a.localeCompare(b) : ra.localeCompare(rb); });
+}
+
+var uid=0; function nid(){ return "n"+(++uid); }
+function T(o){ if(!o.id) o.id=nid(); o.kind=o.kind||"task"; o.state=o.state||" ";
+  o.domain=o.domain||null; o.imp=o.imp||null; o.est=o.est||null; o.due=o.due||null;
+  o.link=o.link||null; o.details=o.details||""; o.slot=o.slot||null; o.sched=o.sched||false; o.depth=o.depth||0; return o; }
+
+var SEED = [
+  T({kind:"head",text:"Inbox"}),
+  T({kind:"note",text:"call back the roofer — left a VM Tuesday, he said mornings are better"}),
+  T({text:"Book flights for the December trip",domain:"Travel",imp:2,est:45}),
+  T({kind:"note",text:"look into that standing desk converter, the one with the crank"}),
+
+  T({kind:"head",text:"Work"}),
+  T({text:"Renew alcedine.com before it lapses",domain:"Alcedine",imp:1,est:15,due:"2026-09-22"}),
+  T({state:"-",text:"Confirm the indemnification language with the lawyers",domain:"Legal",imp:1,est:30,
+     details:"Joe at the firm — 800-555-1212 or joelawyer@somelawfirm.com. He's only reachable 9am–noon Paris time, so call before 6am my time or it waits a day.\n\nSent the redline Wed. No reply yet."}),
+  T({text:"Draft the Q4 renewal list for the top 20 accounts and flag the ones that need a call from me rather than an email",domain:"ContractSafe",imp:2,est:120}),
+  T({state:"x",text:"Send the revised MSA to Dana",domain:"Legal"}),
+  T({state:"-",text:"Waiting on the August Mercury statement to reconcile",domain:"Finance",imp:2}),
+  T({text:"Reply to the Invoiced support thread about proration",domain:"ContractSafe",imp:3,est:10}),
+  T({text:"Post the ops contractor listing",domain:"Hiring",imp:2,est:25}),
+  T({text:"Pull the Q3 numbers together for the board note",domain:"Finance",imp:1,est:90,due:"2026-09-21"}),
+
+  T({kind:"head",text:"Personal"}),
+  T({text:"Replace the garbage disposal",domain:"House",imp:3,est:90}),
+  T({text:"Vet — Augie's annual shots",domain:"Errands",imp:2,est:60,due:"2026-09-24"}),
+  T({state:"-",text:"Waiting on the quote from the tile guy",domain:"House",imp:2}),
+  T({text:"Renew passport before December",domain:"Travel",imp:1,est:45,due:"2026-10-15"}),
+  T({state:"x",text:"Order the replacement water filter",domain:"House"}),
+  T({text:"Hebrew — 20 minutes of review",domain:"Study",imp:3,est:20}),
+  T({text:"Schedule the annual physical",domain:"Health",imp:2,est:10}),
+  T({text:"Pick a gift for Ellen's birthday",domain:"Errands",imp:2,est:30,due:"2026-09-26"}),
+  T({kind:"note",text:"ideas: the good olive oil? a cookbook? that ceramic thing she pointed at"}),
+  T({text:"Read: Karpathy on evals",domain:"Reading",imp:3,est:20,
+     link:{url:"https://example.com/on-evals",title:"Karpathy — On evals"}}),
+  T({text:"Read: the piece about why task managers fail",domain:"Reading",imp:3,est:12,
+     link:{url:"https://example.com/task-managers",title:"Why task managers fail"}}),
+  T({text:"Sort out the garage shelving",domain:"House",imp:3,est:180})
+];
+
+var state = { items:SEED, view:"doc", realm:"All", domain:null, open:null, raw:false, settings:false };
+
+/* ---------- storage: the private repo, through the Worker ----------
+   The app works with no config at all (everything stays in this browser). Once a
+   Worker URL and token are set it loads from the repo on open and saves back,
+   guarded by the file's blob SHA so two devices cannot silently overwrite each other. */
+var cfg={url:"",token:""};
+var sync={rev:null,status:"local",timer:null,remote:null};
+
+function loadCfg(){
+  try{ var c=JSON.parse(localStorage.getItem("checkmate.cfg")||"{}");
+    cfg.url=c.url||""; cfg.token=c.token||""; }catch(e){}
+}
+function saveCfg(){ try{ localStorage.setItem("checkmate.cfg",JSON.stringify(cfg)); }catch(e){} }
+function configured(){ return !!(cfg.url && cfg.token); }
+
+function api(path,opts){
+  var base=cfg.url.replace(/\/+$/,"");
+  var u=base+path+(path.indexOf("?")<0?"?":"&")+"token="+encodeURIComponent(cfg.token);
+  return fetch(u,opts||{});
+}
+
+var STATUS={ local:"local only", loading:"loading…", saving:"saving…",
+             saved:"saved", offline:"offline", conflict:"changed elsewhere" };
+function setStatus(s){ sync.status=s; paintStatus(); }
+function paintStatus(){
+  var b=document.getElementById("status");
+  if(!b) return;
+  b.textContent=STATUS[sync.status]||sync.status;
+  b.className="status s-"+sync.status;
+}
+
+function pull(){
+  if(!configured()){ setStatus("local"); return Promise.resolve(false); }
+  setStatus("loading");
+  return api("/doc").then(function(r){
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    return r.json();
+  }).then(function(d){
+    sync.rev=(d.rev===undefined?null:d.rev);
+    var items=parseDoc(d.text||"");
+    if(items.length) state.items=items;
+    save(true);                         // cache locally, do not bounce it back up
+    setStatus("saved"); render();
+    return true;
+  }).catch(function(){
+    setStatus("offline"); render();     // the local cache is what you get
+    return false;
+  });
+}
+
+function push(){
+  if(!configured()) return Promise.resolve(false);
+  var text=serializeDoc(state.items);
+  setStatus("saving");
+  return api("/doc",{method:"PUT",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({text:text,rev:sync.rev,message:"CheckMate update"})})
+    .then(function(r){
+      if(r.status===409){
+        return r.json().then(function(d){
+          sync.remote=d; setStatus("conflict");
+          render();          // the only status change that redraws: it needs a panel.
+          return false;      // the rest just repaint the pill, so typing is never interrupted.
+        });
+      }
+      if(!r.ok) throw new Error("HTTP "+r.status);
+      return r.json().then(function(d){ sync.rev=(d.rev===undefined?sync.rev:d.rev); setStatus("saved"); return true; });
+    })
+    .catch(function(){ setStatus("offline"); return false; });
+}
+
+function scheduleSave(){
+  if(!configured()) return;
+  if(sync.status!=="conflict") setStatus("saving");
+  clearTimeout(sync.timer);
+  sync.timer=setTimeout(push,1200);     // one commit per pause, not one per keystroke
+}
+
+/* ---------- settings ---------- */
+function settingsPanel(){
+  var p=el("div","settings");
+  var g=el("div","dgrid");
+
+  var f1=el("div","f full"); f1.appendChild(el("label",null,"Worker URL"));
+  var i1=el("input"); i1.type="url"; i1.value=cfg.url; i1.placeholder="https://checkmate.<you>.workers.dev";
+  i1.dataset.cf="url"; f1.appendChild(i1); g.appendChild(f1);
+
+  var f2=el("div","f full"); f2.appendChild(el("label",null,"Token"));
+  var i2=el("input"); i2.type="password"; i2.value=cfg.token; i2.placeholder="the SECRET_TOKEN you set on the Worker";
+  i2.dataset.cf="token"; f2.appendChild(i2); g.appendChild(f2);
+  p.appendChild(g);
+
+  var foot=el("div","dfoot");
+  var sv=el("button","act save","Connect");
+  sv.addEventListener("click",function(){
+    cfg.url=i1.value.trim(); cfg.token=i2.value.trim(); saveCfg();
+    state.settings=false; render();
+    pull().then(function(okd){ if(okd) toast("Connected"); else toast("Could not reach the Worker"); });
+  });
+  foot.appendChild(sv);
+
+  if(configured()){
+    var dl=el("button","act","Disconnect");
+    dl.addEventListener("click",function(){
+      cfg.url=""; cfg.token=""; saveCfg(); sync.rev=null;
+      state.settings=false; setStatus("local"); render();
+    });
+    foot.appendChild(dl);
+  }
+  foot.appendChild(el("span","hint","Stored in this browser only. Nothing is sent anywhere until you connect."));
+  var cl=el("button","act","Close");
+  cl.addEventListener("click",function(){ state.settings=false; render(); });
+  foot.appendChild(el("span","spacer")); foot.appendChild(cl);
+  p.appendChild(foot);
+  return p;
+}
+
+function conflictPanel(){
+  var p=el("div","settings conflict");
+  p.appendChild(el("div","clabel","This file changed somewhere else since you loaded it."));
+  p.appendChild(el("div","hint","Nothing was overwritten. Take the other version, or keep yours and overwrite it."));
+  var foot=el("div","dfoot");
+  var take=el("button","act save","Take the other version");
+  take.addEventListener("click",function(){
+    if(sync.remote && typeof sync.remote.text==="string"){
+      sync.rev=(sync.remote.rev===undefined?null:sync.remote.rev);
+      state.items=parseDoc(sync.remote.text);
+      sync.remote=null; save(true); setStatus("saved"); render();
+    } else { pull(); }
+  });
+  var mine=el("button","act danger","Keep mine, overwrite");
+  mine.addEventListener("click",function(){
+    if(sync.remote) sync.rev=(sync.remote.rev===undefined?sync.rev:sync.remote.rev);
+    sync.remote=null; push().then(render);
+  });
+  foot.appendChild(take); foot.appendChild(mine);
+  p.appendChild(foot);
+  return p;
+}
+
+
+/* ---------- persistence (per-viewer convenience only) ---------- */
+function save(quiet){ try{
+  localStorage.setItem("checkmate.v1",JSON.stringify(state.items));
+  localStorage.setItem("checkmate.realms",JSON.stringify(REALM));
+}catch(e){}
+  if(!quiet) scheduleSave(); }
+function load(){
+ try{ var r=localStorage.getItem("checkmate.realms")||localStorage.getItem("bracket.realms");
+   if(r){ var rm=JSON.parse(r); if(rm&&typeof rm==="object") REALM=rm; } }catch(e){}
+ try{ var s=localStorage.getItem("checkmate.v1")||localStorage.getItem("bracket.v1"); if(s){ var a=JSON.parse(s);
+  if(Array.isArray(a)&&a.length){ state.items=a; a.forEach(function(o){ var n=+String(o.id).slice(1); if(n>uid) uid=n; }); } } }catch(e){} }
+load();
+
+/* ---------- derived ---------- */
+function daysOut(due){ if(!due) return null;
+  var p=due.split("-"); var d=new Date(+p[0],+p[1]-1,+p[2]);
+  return Math.round((d-TODAY)/86400000); }
+function isUrgent(it){ var d=daysOut(it.due); return d!==null && d<=3; }
+function realmOf(it){ return it.domain ? (REALM[it.domain]||"Personal") : null; }
+function fmtEst(m){ if(!m) return null; return m>=60 ? (m%60===0 ? (m/60)+"h" : (m/60).toFixed(1)+"h") : m+"m"; }
+function fmtDue(due){ var d=daysOut(due); if(d===null) return null;
+  if(d===0) return "today"; if(d===1) return "tomorrow"; if(d<0) return Math.abs(d)+"d late";
+  if(d<=6) return "in "+d+"d";
+  var p=due.split("-"); return ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][+p[1]-1]+" "+(+p[2]); }
+
+function visible(it){
+  if(it.kind!=="task") return state.view==="doc";
+  if(state.realm!=="All" && realmOf(it)!==state.realm) return false;
+  if(state.domain && it.domain!==state.domain) return false;
+  return true;
+}
+function tasks(){ return state.items.filter(function(it){ return it.kind==="task" && visible(it); }); }
+
+/* ---------- editing ---------- */
+// a real newline inside the current block (.txt is white-space:pre-wrap).
+// Rebuilding textContent keeps offsets deterministic -- Range.insertNode at a
+// text-node boundary lands the caret on the wrong side of the break in Chrome.
+var ZW="\u200B";                       // sentinel: Chrome will not place the caret
+                                        // after a trailing newline without one
+function getText(node){ return node.textContent.replace(/\u200B/g,""); }
+function renderText(t){ return /\n$/.test(t) ? t+ZW : t; }
+function setCaretIndex(node,i){
+  var tn=node.firstChild;
+  if(!tn || tn.nodeType!==3){ tn=document.createTextNode(node.textContent||""); node.innerHTML=""; node.appendChild(tn); }
+  var r=document.createRange();
+  r.setStart(tn, Math.max(0,Math.min(i, tn.textContent.length)));
+  r.collapse(true);
+  var sel=window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+}
+function insertBreak(node){
+  var i=caretIndex(node);
+  var t=node.textContent.replace(/\u200B/g,"");
+  if(i>t.length) i=t.length;
+  var next = t.slice(0,i) + "\n" + t.slice(i);
+  node.textContent = renderText(next);
+  setCaretIndex(node, i+1);
+}
+
+/* ---------- caret navigation across lines ---------- */
+var navigating=false;
+
+function caretIndex(node){
+  var sel=window.getSelection();
+  if(!sel.rangeCount) return 0;
+  var r=sel.getRangeAt(0);
+  if(!node.contains(r.startContainer)) return 0;
+  var pre=document.createRange();
+  pre.selectNodeContents(node); pre.setEnd(r.startContainer,r.startOffset);
+  return pre.toString().length;
+}
+
+// is the caret on the first / last VISUAL line of this (possibly wrapped) element?
+function lineEdges(node){
+  var er=node.getBoundingClientRect();
+  var lh=parseFloat(window.getComputedStyle(node).lineHeight)||20;
+  var len=node.textContent.length;
+  if(len===0) return {first:true,last:true,x:er.left};
+  var idx=caretIndex(node);
+  var cr=null;
+  var sel=window.getSelection();
+  if(sel.rangeCount){
+    var r=sel.getRangeAt(0).cloneRange(); r.collapse(true);
+    var rects=r.getClientRects();
+    if(rects.length) cr=rects[0];
+  }
+  if(!cr) return {first:idx===0,last:idx===len,x:er.left};
+  return { first: (cr.top - er.top) < lh*0.6,
+           last:  (er.bottom - cr.bottom) < lh*0.6,
+           x: cr.left };
+}
+
+function textNodesInOrder(){
+  return Array.prototype.slice.call(document.querySelectorAll(".row .txt"));
+}
+
+function placeCaret(node,x,y){
+  var range=null;
+  try{
+    if(document.caretRangeFromPoint) range=document.caretRangeFromPoint(x,y);
+    else if(document.caretPositionFromPoint){
+      var pos=document.caretPositionFromPoint(x,y);
+      if(pos){ range=document.createRange(); range.setStart(pos.offsetNode,pos.offset); range.collapse(true); }
+    }
+  }catch(e){}
+  var sel=window.getSelection();
+  if(range && node.contains(range.startContainer)){
+    sel.removeAllRanges(); sel.addRange(range); return;
+  }
+  var fb=document.createRange(); fb.selectNodeContents(node); fb.collapse(false);
+  sel.removeAllRanges(); sel.addRange(fb);
+}
+
+// move focus to the previous/next line, keeping the caret near column x
+function navLine(it,node,dir,x,toEdge){
+  var changed=commitText(it,getText(node));
+  if(changed){ navigating=true; render(); navigating=false; }
+  var nodes=textNodesInOrder();
+  var cur=-1;
+  for(var i=0;i<nodes.length;i++){
+    var row=nodes[i].parentNode.parentNode;
+    if(row && row.dataset.id===it.id){ cur=i; break; }
+  }
+  if(cur<0) return false;
+  var target=nodes[cur+dir];
+  if(!target) return false;
+  navigating=true;
+  target.focus();
+  var tr=target.getBoundingClientRect();
+  var lh=parseFloat(window.getComputedStyle(target).lineHeight)||20;
+  if(toEdge==="start"){
+    var st=document.createRange(); st.selectNodeContents(target); st.collapse(true);
+    var s1=window.getSelection(); s1.removeAllRanges(); s1.addRange(st);
+  } else if(toEdge==="end"){
+    var en=document.createRange(); en.selectNodeContents(target); en.collapse(false);
+    var s2=window.getSelection(); s2.removeAllRanges(); s2.addRange(en);
+  } else {
+    // land on the nearest visual line, same column
+    var y = dir<0 ? (tr.bottom - lh*0.5) : (tr.top + lh*0.5);
+    placeCaret(target,x,y);
+  }
+  target.scrollIntoView({block:"nearest"});
+  navigating=false;
+  return true;
+}
+
+/* ---------- structure ops ---------- */
+var dragId=null;
+function clearDrop(){ Array.prototype.forEach.call(document.querySelectorAll(".row"),function(r){
+  r.classList.remove("dropabove","dropbelow","dragging"); }); }
+function idxOf(it){ return state.items.indexOf(it); }
+
+// a line plus everything indented under it
+function blockRange(i){
+  var d=state.items[i].depth||0, j=i+1;
+  while(j<state.items.length){
+    var x=state.items[j];
+    if(x.kind==="head") break;
+    if((x.depth||0) <= d) break;
+    j++;
+  }
+  return [i,j];
+}
+// nearest line above at the SAME depth under the same parent (-1 if none)
+function prevSibling(i){
+  var d=state.items[i].depth||0;
+  for(var k=i-1;k>=0;k--){
+    var x=state.items[k];
+    if(x.kind==="head") return -1;
+    var xd=x.depth||0;
+    if(xd===d) return k;
+    if(xd<d) return -1;
+  }
+  return -1;
+}
+// start of the next sibling block at the same depth (-1 if none)
+function nextSibling(i){
+  var j=blockRange(i)[1];
+  if(j>=state.items.length) return -1;
+  var x=state.items[j];
+  if(x.kind==="head") return -1;
+  if((x.depth||0)!==(state.items[i].depth||0)) return -1;
+  return j;
+}
+function spliceIn(at,blk){
+  var args=[at,0].concat(blk);
+  Array.prototype.splice.apply(state.items,args);
+}
+
+function moveItem(it,dir){
+  var i=idxOf(it);
+  if(i<0) return false;
+  if(it.kind==="head"){                       // headings move as single lines
+    var j=i+dir;
+    if(j<0||j>=state.items.length) return false;
+    state.items.splice(i,1); state.items.splice(j,0,it); save(); return true;
+  }
+  var r=blockRange(i), blk=state.items.slice(r[0],r[1]);
+  if(dir<0){
+    var ps=prevSibling(i);
+    if(ps<0) return false;
+    state.items.splice(r[0],blk.length);
+    spliceIn(ps,blk);
+  } else {
+    var ns=nextSibling(i);
+    if(ns<0) return false;
+    var nEnd=blockRange(ns)[1];
+    state.items.splice(r[0],blk.length);
+    spliceIn(nEnd-blk.length,blk);
+  }
+  save(); return true;
+}
+
+function indentItem(it,dir){
+  var i=idxOf(it);
+  if(i<0 || it.kind==="head") return false;
+  var r=blockRange(i), blk=state.items.slice(r[0],r[1]);
+  if(dir>0){
+    var above = i>0 ? state.items[i-1] : null;
+    if(!above || above.kind==="head") return false;   // nothing above to nest under
+    if((it.depth||0) > (above.depth||0)) return false; // at most one deeper than the line above
+    if((it.depth||0) >= 4) return false;
+    blk.forEach(function(x){ x.depth=(x.depth||0)+1; });
+  } else {
+    if((it.depth||0)<=0) return false;
+    blk.forEach(function(x){ x.depth=Math.max(0,(x.depth||0)-1); });
+  }
+  save(); return true;
+}
+function moveTo(did,tid,below){
+  var a=-1,b=-1,i;
+  for(i=0;i<state.items.length;i++){ if(state.items[i].id===did) a=i; }
+  if(a<0) return;
+  var moved=state.items.splice(a,1)[0];
+  for(i=0;i<state.items.length;i++){ if(state.items[i].id===tid) b=i; }
+  if(b<0) state.items.push(moved); else state.items.splice(below?b+1:b,0,moved);
+  save();
+}
+
+/* ---------- touch: long-press to pick a line up ---------- */
+var grabId=null, lastOver=null;
+
+function grabbar(){ return document.getElementById("grabbar"); }
+function liveRow(id){ return document.querySelector('.row[data-id="'+id+'"]'); }
+function setGrab(id){
+  grabId=id;
+  grabbar().hidden=!id;
+  document.body.classList.toggle("grabbing",!!id);
+  // Paint the state straight onto the DOM instead of re-rendering. A render here
+  // would detach the row under the finger; touch events keep going to the detached
+  // node, and putting it back gives you the same line twice.
+  Array.prototype.forEach.call(document.querySelectorAll(".row.grabbed"),
+    function(r){ r.classList.remove("grabbed"); });
+  if(id){
+    var r=liveRow(id);
+    if(r) r.classList.add("grabbed");
+    syncGrabBar();
+  }
+}
+// Let go WITHOUT re-rendering, so the tap that follows can land in the text.
+function releaseGrab(){
+  if(!grabId) return;
+  grabId=null;
+  grabbar().hidden=true;
+  document.body.classList.remove("grabbing");
+  var g=document.querySelector(".row.grabbed");
+  if(g) g.classList.remove("grabbed");
+}
+function syncGrabBar(){
+  var it=state.items.filter(function(x){return x.id===grabId;})[0];
+  if(!it) return;
+  var i=idxOf(it), above = i>0 ? state.items[i-1] : null;
+  var bar=grabbar();
+  bar.querySelector('[data-act="in"]').disabled =
+    !above || above.kind==="head" || (it.depth||0) > (above.depth||0) || (it.depth||0)>=4;
+  bar.querySelector('[data-act="out"]').disabled = (it.depth||0)<=0;
+}
+function grabbedItem(){
+  for(var i=0;i<state.items.length;i++) if(state.items[i].id===grabId) return state.items[i];
+  return null;
+}
+function wireGrabBar(){
+  grabbar().addEventListener("click",function(ev){
+    var b=ev.target.closest("button"); if(!b) return;
+    var act=b.dataset.act;
+    if(act==="done"){ setGrab(null); return; }
+    var it=grabbedItem(); if(!it) return;
+    var okAct = (act==="in") ? indentItem(it,1)
+              : (act==="out") ? indentItem(it,-1)
+              : (act==="up") ? moveItem(it,-1)
+              : moveItem(it,1);
+    if(!okAct) flash(it.id);
+    render(); syncGrabBar();
+  });
+}
+
+// Dragging moves the row ELEMENT rather than re-rendering: a render would destroy
+// the node the finger is touching, and the gesture would die mid-drag.
+function dragOver(row,x,y){
+  row = liveRow(grabId) || row;                 // never move a detached node
+  if(!row || !row.isConnected) return;
+  var el0=document.elementFromPoint(x,y);
+  var over=el0 && el0.closest ? el0.closest(".row") : null;
+  if(!over || over===row || !over.dataset.id || !over.isConnected) return;
+  var r=over.getBoundingClientRect();
+  var below = y > r.top + r.height/2;
+  moveTo(grabId, over.dataset.id, below);
+  over.parentNode.insertBefore(row, below ? over.nextSibling : over);
+  syncGrabBar();
+}
+function wireHandle(it,row,h){
+  h.addEventListener("touchstart",function(ev){
+    ev.preventDefault();                      // no scroll, no synthetic click
+    if(!canRestructure()){ flash(it.id); return; }
+    if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    if(navigator.vibrate){ try{ navigator.vibrate(8); }catch(e){} }
+    setGrab(it.id);
+  },{passive:false});
+  h.addEventListener("touchmove",function(ev){
+    if(grabId!==it.id) return;
+    ev.preventDefault();
+    var t=ev.touches[0];
+    dragOver(liveRow(it.id),t.clientX,t.clientY);
+  },{passive:false});
+  h.addEventListener("touchend",function(){
+    if(grabId!==it.id) return;
+    render();                                   // resync the DOM with the model, gesture over
+  },{passive:true});
+  h.addEventListener("click",function(ev){ ev.preventDefault(); });
+}
+
+/* ---------- feedback ---------- */
+var toastEl=null, toastT=null;
+function toast(msg){
+  if(!toastEl){ toastEl=document.createElement("div"); toastEl.className="toast"; document.body.appendChild(toastEl); }
+  toastEl.textContent=msg; toastEl.classList.add("on");
+  clearTimeout(toastT); toastT=setTimeout(function(){ toastEl.classList.remove("on"); },1900);
+}
+function flash(id){
+  var r=document.querySelector('.row[data-id="'+id+'"]');
+  if(!r) return;
+  r.classList.remove("nope"); void r.offsetWidth; r.classList.add("nope");
+  setTimeout(function(){ r.classList.remove("nope"); },260);
+}
+// structure edits only make sense where the document order is what you see
+function canRestructure(){
+  if(state.view!=="doc"){ toast("Move and indent work in the Document view"); return false; }
+  return true;
+}
+
+/* ---------- element helpers ---------- */
+function el(tag,cls,txt){ var e=document.createElement(tag); if(cls)e.className=cls; if(txt!=null)e.textContent=txt; return e; }
+
+/* ---------- rows ---------- */
+function markerFor(it){ return it.state==="x" ? "[x]" : it.state==="-" ? "[-]" : "[ ]"; }
+
+function buildRow(it){
+  var row=el("div","row"+(it.kind==="note"?" note":"")+(it.kind==="head"?" head":"")+
+                 (it.state==="x"?" done":"")+(state.open===it.id?" open":""));
+  row.dataset.id=it.id;
+  if(it.depth) row.style.marginLeft=(it.depth*18)+"px";
+
+  var grip=el("span","grip","\u2237"); grip.title="drag to move";
+  row.appendChild(grip);
+  row.draggable=true;
+  row.addEventListener("dragstart",function(ev){
+    dragId=it.id; row.classList.add("dragging");
+    try{ ev.dataTransfer.setData("text/plain",it.id); ev.dataTransfer.effectAllowed="move"; }catch(e){}
+  });
+  row.addEventListener("dragend",function(){ dragId=null; clearDrop(); render(); });
+  row.addEventListener("dragover",function(ev){
+    if(!dragId||dragId===it.id) return;
+    ev.preventDefault();
+    row.classList.remove("dropabove","dropbelow");
+    var r=row.getBoundingClientRect();
+    row.classList.add(ev.clientY > r.top + r.height/2 ? "dropbelow" : "dropabove");
+  });
+  row.addEventListener("dragleave",function(){ row.classList.remove("dropabove","dropbelow"); });
+  row.addEventListener("drop",function(ev){
+    if(!dragId||dragId===it.id) return;
+    ev.preventDefault();
+    var r=row.getBoundingClientRect();
+    moveTo(dragId, it.id, ev.clientY > r.top + r.height/2);
+    dragId=null; clearDrop(); render();
+  });
+
+  if(grabId===it.id) row.classList.add("grabbed");
+
+  var g=el("button","gutter");
+  if(it.kind==="task"){
+    g.textContent=markerFor(it);
+    g.className="gutter"+(it.state==="x"?" s-x":it.state==="-"?" s-dash":"");
+    g.title="cycle state";
+    g.addEventListener("click",function(){ it.state = it.state===" "?"-":it.state==="-"?"x":" "; save(); render(); });
+  } else if(it.kind==="note"){
+    g.textContent="[ ]"; g.className="gutter ghost"; g.title="Make this a task";
+    g.setAttribute("aria-label","Make this line a task");
+    g.addEventListener("click",function(){ it.kind="task"; it.state=" "; save(); render(); });
+  } else { g.textContent=""; g.className="gutter ghost"; }
+  row.appendChild(g);
+
+  var body=el("div","body");
+  var txt=el("span","txt",renderText(it.text));
+  txt.contentEditable="true"; txt.spellcheck=false;
+  txt.addEventListener("focus",releaseGrab);
+  txt.addEventListener("blur",function(){
+      var changed=commitText(it,getText(txt));
+      if(changed && !navigating) render(it.id,true);
+      else txt.textContent=renderText(it.text);   // drop any stale caret sentinel
+    });
+  txt.addEventListener("keydown",function(ev){ onKey(ev,it,txt); });
+  body.appendChild(txt);
+
+  if(it.kind==="task"){
+    var meta=el("span","meta");
+    if(it.domain) meta.appendChild(chip("m m-dom",it.domain,it));
+    if(it.imp) meta.appendChild(chip("m m-imp i"+it.imp,"!"+it.imp,it));
+    if(it.est) meta.appendChild(chip("m m-est","~"+fmtEst(it.est),it));
+    if(it.due) meta.appendChild(chip("m m-due"+(isUrgent(it)?" urgent":""),fmtDue(it.due),it));
+    if(it.slot) meta.appendChild(chip("m m-slot","→ "+it.slot,it));
+    else if(it.sched) meta.appendChild(chip("m m-slot",">?",it));
+    if(it.link){ var a=el("a","m m-link","↗ link"); a.href=it.link.url; a.target="_blank"; a.rel="noopener";
+      a.title=it.link.title||it.link.url; meta.appendChild(a); }
+    if(it.details) meta.appendChild(chip("m m-note","≡",it));
+    var dots=el("button","dots","⋮"); dots.title="properties";
+    dots.addEventListener("click",function(){ state.open = state.open===it.id?null:it.id; render(); });
+    meta.appendChild(dots);
+    body.appendChild(meta);
+  }
+  row.appendChild(body);
+
+  if(state.view==="doc" && it.kind!=="head"){
+    var hd=el("div","handle","\u2261");
+    hd.title="Drag to move";
+    hd.setAttribute("aria-label","Drag to move this line");
+    wireHandle(it,row,hd);
+    row.appendChild(hd);
+  }
+  return row;
+}
+function chip(cls,label,it){ var b=el("button",cls,label);
+  b.addEventListener("click",function(){ state.open = state.open===it.id?null:it.id; render(); }); return b; }
+
+function commitText(it,raw){
+  var t=raw.replace(/\s+$/,"");
+  var before=it.kind+"|"+it.state;
+  var m=/^\[([ xX\-])\]\s+(.*)$/.exec(t);
+  if(m && it.kind!=="head"){
+    it.kind="task";
+    it.state=(m[1].toLowerCase()===" "?" ":m[1].toLowerCase());
+    it.text=m[2];
+  } else { it.text=t; }
+  save();
+  return before !== (it.kind+"|"+it.state);
+}
+
+function onKey(ev,it,node){
+  var mod = ev.ctrlKey || ev.altKey || ev.metaKey;
+
+  if(!mod && !ev.shiftKey && (ev.key==="ArrowUp"||ev.key==="ArrowDown")){
+    var e1=lineEdges(node);
+    if(ev.key==="ArrowUp" && e1.first){ ev.preventDefault(); navLine(it,node,-1,e1.x); return; }
+    if(ev.key==="ArrowDown" && e1.last){ ev.preventDefault(); navLine(it,node,1,e1.x); return; }
+    return; // otherwise let the browser move within a wrapped line
+  }
+  if(!mod && !ev.shiftKey && ev.key==="ArrowLeft" && caretIndex(node)===0){
+    ev.preventDefault(); navLine(it,node,-1,0,"end"); return;
+  }
+  if(!mod && !ev.shiftKey && ev.key==="ArrowRight" && caretIndex(node)===getText(node).length){
+    ev.preventDefault(); navLine(it,node,1,0,"start"); return;
+  }
+
+  if(mod && (ev.key==="ArrowUp"||ev.key==="ArrowDown")){
+    ev.preventDefault(); commitText(it,getText(node));
+    if(!canRestructure()){ flash(it.id); return; }
+    if(moveItem(it, ev.key==="ArrowUp"?-1:1)) render(it.id,true); else flash(it.id);
+    return;
+  }
+  if((mod && (ev.key==="ArrowRight"||ev.key==="ArrowLeft")) || ev.key==="Tab"){
+    ev.preventDefault(); commitText(it,getText(node));
+    var into = (ev.key==="Tab") ? !ev.shiftKey : (ev.key==="ArrowRight");
+    if(!canRestructure()){ flash(it.id); return; }
+    if(indentItem(it, into?1:-1)) render(it.id,true); else flash(it.id);
+    return;
+  }
+  if(ev.key==="Enter"){
+    var hard = ev.ctrlKey || ev.metaKey;        // always ends the block
+    // plain text keeps you in the same block; a task list wants a new task per Enter
+    var soft = !hard && (ev.shiftKey || it.kind==="note");
+    if(soft){
+      ev.preventDefault();
+      insertBreak(node);
+      commitText(it,getText(node));
+      return;
+    }
+    ev.preventDefault(); commitText(it,getText(node));
+    var nk = (it.kind==="task" && !hard) ? "task" : "note";
+    var n=T({ kind:nk, state:" ", text:"",
+              domain: nk==="task" ? it.domain : null,
+              depth: it.kind==="head" ? 0 : it.depth });
+    var i=state.items.indexOf(it); state.items.splice(i+1,0,n); save(); render(n.id);
+    return;
+  } else if(ev.key==="Backspace" && getText(node)===""){
+    var idx=state.items.indexOf(it);
+    if(idx>0){ ev.preventDefault(); state.items.splice(idx,1); save();
+      var prev=state.items[idx-1]; render(prev.id,true); }
+  } else if(ev.key==="Escape"){ node.blur(); }
+}
+
+/* ---------- drawer ---------- */
+// Pull every field's current value off the DOM. Save, the X and Esc all call this,
+// so there is no way out of the drawer that silently drops what you typed.
+function readDrawer(it){
+  var d=document.querySelector(".drawer");
+  if(!d) return false;
+  function f(name){ var e=d.querySelector('[data-f="'+name+'"]'); return e ? e.value : null; }
+  var dom=(f("domain")||"").trim();
+  it.domain = dom || null;
+  if(dom && !REALM[dom]) REALM[dom]="Personal";
+  var est=f("est"); it.est = est ? +est : null;
+  it.due = f("due") || null;
+  var url=(f("link")||"").trim();
+  it.link = url ? {url:url, title:(it.link&&it.link.title)||""} : null;
+  it.details = f("details") || "";
+  save();
+  return true;
+}
+function closeDrawer(it,announce){
+  if(it) readDrawer(it);
+  state.open=null;
+  render();
+  if(announce) toast("Saved");
+}
+function openItem(){
+  for(var i=0;i<state.items.length;i++) if(state.items[i].id===state.open) return state.items[i];
+  return null;
+}
+
+function buildDrawer(it){
+  var d=el("div","drawer");
+  var dh=el("div","dhead");
+  dh.appendChild(el("span","lab","Properties"));
+  dh.appendChild(el("span","who",it.text||"untitled"));
+  var x=el("button","xbtn","✕"); x.title="Save and close (Esc)";
+  x.setAttribute("aria-label","Save and close properties");
+  x.addEventListener("click",function(){ closeDrawer(it,false); });
+  dh.appendChild(x); d.appendChild(dh);
+  var g=el("div","dgrid");
+
+  var dwrap=el("div","domrow full");
+  var f1=el("div","f"); f1.appendChild(el("label",null,"Domain — type a new name to add it"));
+  var dl=el("datalist"); dl.id="domlist";
+  domains().forEach(function(dn){ var o=el("option"); o.value=dn; dl.appendChild(o); });
+  var inp=el("input"); inp.setAttribute("list","domlist"); inp.value=it.domain||"";
+  inp.placeholder="Alcedine, House, …"; inp.autocomplete="off"; inp.dataset.f="domain";
+  inp.addEventListener("change",function(){ readDrawer(it); render(); });
+  f1.appendChild(inp); f1.appendChild(dl); dwrap.appendChild(f1);
+
+  var f1b=el("div","f"); f1b.appendChild(el("label",null,"maps to"));
+  var rseg=el("div","seg realmseg");
+  ["Work","Personal"].forEach(function(r){
+    var b=el("button",null,r);
+    b.setAttribute("aria-pressed", (it.domain && REALM[it.domain]===r) ? "true":"false");
+    b.disabled=!it.domain;
+    b.addEventListener("click",function(){ if(!it.domain) return; REALM[it.domain]=r; save(); render(); });
+    rseg.appendChild(b);
+  });
+  f1b.appendChild(rseg); dwrap.appendChild(f1b);
+  g.appendChild(dwrap);
+
+  var f2=el("div","f"); f2.appendChild(el("label",null,"Importance"));
+  var seg=el("div","seg");
+  [1,2,3].forEach(function(n){ var b=el("button",null,"!"+n);
+    b.setAttribute("aria-pressed",it.imp===n?"true":"false");
+    b.addEventListener("click",function(){ readDrawer(it); it.imp = it.imp===n?null:n; save(); render(); });
+    seg.appendChild(b); });
+  f2.appendChild(seg); g.appendChild(f2);
+
+  var f3=el("div","f full"); f3.appendChild(el("label",null,"Estimate"));
+  var erow=el("div","estrow");
+  var eseg=el("div","seg estseg");
+  [[15,"15m"],[30,"30m"],[60,"1h"]].forEach(function(pair){
+    var b=el("button",null,pair[1]);
+    b.setAttribute("aria-pressed", it.est===pair[0] ? "true":"false");
+    b.addEventListener("click",function(){
+      readDrawer(it);                                  // keep whatever else was typed
+      it.est = (it.est===pair[0]) ? null : pair[0];    // tapping the current one clears it
+      save(); render();
+    });
+    eseg.appendChild(b);
+  });
+  erow.appendChild(eseg);
+  var e3=el("input"); e3.type="number"; e3.min="0"; e3.step="5"; e3.value=it.est||"";
+  e3.dataset.f="est"; e3.placeholder="or minutes"; e3.setAttribute("aria-label","Estimate in minutes");
+  erow.appendChild(e3);
+  f3.appendChild(erow); g.appendChild(f3);
+
+  var f4=el("div","f"); f4.appendChild(el("label",null,"By when → urgency"));
+  var e4=el("input"); e4.type="date"; e4.value=it.due||"";
+  e4.dataset.f="due";
+  f4.appendChild(e4); g.appendChild(f4);
+
+  var f5=el("div","f full"); f5.appendChild(el("label",null,"Link"));
+  var e5=el("input"); e5.type="url"; e5.placeholder="https://…"; e5.value=it.link?it.link.url:"";
+  e5.dataset.f="link";
+  f5.appendChild(e5); g.appendChild(f5);
+
+  var f6=el("div","f full"); f6.appendChild(el("label",null,"Details"));
+  var e6=el("textarea"); e6.value=it.details||"";
+  e6.placeholder="phone numbers, context, whatever doesn't belong on the line…";
+  e6.dataset.f="details";
+  f6.appendChild(e6); g.appendChild(f6);
+
+  d.appendChild(g);
+
+  var foot=el("div","dfoot");
+  var sv=el("button","act save","Save");
+  sv.addEventListener("click",function(){ closeDrawer(it,true); });
+  foot.appendChild(sv);
+
+  var sch=el("button","act"+(it.sched?" primary":""), it.sched ? "Marked to schedule" : "Schedule?");
+  sch.addEventListener("click",function(){
+    readDrawer(it); it.sched=!it.sched; if(it.sched) it.slot=null; save(); render();
+  });
+  foot.appendChild(sch);
+  foot.appendChild(el("span","hint", it.sched
+    ? "Ask Claude to schedule your marked items and it books a free gap."
+    : "Marks it for Claude to book. Nothing goes on your calendar now."));
+
+  var del=el("button","act danger","Delete");
+  del.addEventListener("click",function(){ var i=state.items.indexOf(it); state.items.splice(i,1);
+    state.open=null; save(); render(); });
+  foot.appendChild(el("span","spacer")); foot.appendChild(del);
+  d.appendChild(foot);
+  return d;
+}
+
+/* ---------- views ---------- */
+function render(focusId,atEnd){
+  var main=document.getElementById("main"); main.innerHTML="";
+  renderTabs(); renderStrip();
+
+  paintStatus();
+  if(state.settings) main.appendChild(settingsPanel());
+  if(sync.status==="conflict") main.appendChild(conflictPanel());
+  if(state.raw){ main.appendChild(rawBlock()); return; }
+  if(state.view==="doc") viewDoc(main);
+  else if(state.view==="domain") viewGrouped(main);
+  else if(state.view==="matrix") viewMatrix(main);
+  else if(state.view==="waiting") viewList(main,function(it){return it.state==="-";},"Nothing is waiting on anybody else.");
+  else if(state.view==="quick") viewList(main,function(it){return it.state!=="x" && it.est && it.est<=15;},"No open items under 15 minutes.");
+  else if(state.view==="read") viewList(main,function(it){return it.state!=="x" && it.link;},"No saved links.");
+
+  if(focusId) focusRow(focusId,atEnd);
+}
+function focusRow(id,atEnd){
+  var r=document.querySelector('.row[data-id="'+id+'"] .txt'); if(!r) return;
+  r.focus();
+  if(atEnd){ var range=document.createRange(); range.selectNodeContents(r); range.collapse(false);
+    var s=window.getSelection(); s.removeAllRanges(); s.addRange(range); }
+}
+function appendRows(parent,list){
+  list.forEach(function(it){
+    parent.appendChild(buildRow(it));
+    if(state.open===it.id && it.kind==="task") parent.appendChild(buildDrawer(it));
+  });
+}
+function viewDoc(main){
+  if(!dismissed()){
+    var tip=el("div","tip");
+    tip.appendChild(el("span",null,"\u2022"));
+    var t=el("span");
+    t.innerHTML = (window.matchMedia && window.matchMedia("(hover:none)").matches)
+      ? 'Tap a line to edit it. Tap the <b>[ ]</b> in the margin to make it a task. Drag the <b>&#8801;</b> on the right to move it, or tap it for indent and nudge buttons.'
+      : 'Click the <b>[ ]</b> that appears in the margin to turn a line of text into a task. On a task, <b>Enter</b> starts the next task; on plain text it just starts a new line, and <b>Ctrl+Enter</b> ends the block. <b>Ctrl \u2191\u2193</b> moves a line, <b>Ctrl \u2192\u2190</b> indents it.';
+    tip.appendChild(t);
+    var dz=el("button",null,"\u2715"); dz.title="dismiss";
+    dz.addEventListener("click",function(){ try{localStorage.setItem("checkmate.tip","1");}catch(e){} render(); });
+    tip.appendChild(dz);
+    main.appendChild(tip);
+  }
+  appendRows(main,state.items.filter(visible));
+  var arow=el("div","addrow");
+  [["note","text","just a line of text"],["task","task","a [ ] item"]].forEach(function(spec){
+    var b=el("button","addline");
+    b.appendChild(el("span","plus","+"));
+    b.appendChild(el("span",null,spec[1]));
+    b.title=spec[2];
+    b.addEventListener("click",function(){
+      var nn=T({kind:spec[0],state:" ",text:""}); state.items.push(nn); save(); render(nn.id);
+    });
+    arow.appendChild(b);
+  });
+  main.appendChild(arow);
+}
+function dismissed(){ try{ return localStorage.getItem("checkmate.tip")==="1"; }catch(e){ return false; } }
+
+function viewGrouped(main){
+  var list=tasks();
+  var byDom={}; list.forEach(function(it){ var k=it.domain||"— no domain"; (byDom[k]=byDom[k]||[]).push(it); });
+  var keys=Object.keys(byDom).sort(function(a,b){
+    var ra=REALM[a]||"zz", rb=REALM[b]||"zz";
+    return ra===rb ? a.localeCompare(b) : ra.localeCompare(rb); });
+  if(!keys.length){ main.appendChild(el("div","empty","Nothing here with these filters.")); return; }
+  keys.forEach(function(k){
+    var h=el("div","grouphead"); h.appendChild(el("span",null,k));
+    h.appendChild(el("span","n",(REALM[k]||"unfiled")+" · "+byDom[k].length));
+    main.appendChild(h); appendRows(main,byDom[k]);
+  });
+}
+function viewMatrix(main){
+  var open=tasks().filter(function(it){return it.state!=="x";});
+  var quads=[
+    {cls:"do",   t:"Do now",   sub:"important · urgent",      f:function(it){return it.imp===1 && isUrgent(it);}},
+    {cls:"plan", t:"Schedule", sub:"important · not urgent",  f:function(it){return it.imp===1 && !isUrgent(it);}},
+    {cls:"quick",t:"Fit in",   sub:"secondary · urgent",      f:function(it){return it.imp!==1 && isUrgent(it);}},
+    {cls:"later",t:"Someday",  sub:"secondary · not urgent",  f:function(it){return it.imp!==1 && !isUrgent(it);}}
+  ];
+  var note=el("div","grouphead"); note.appendChild(el("span",null,"Importance × urgency"));
+  note.appendChild(el("span","n","urgency is computed from “by when”, never typed"));
+  main.appendChild(note);
+  var grid=el("div","matrix");
+  quads.forEach(function(q){
+    var box=el("div","quad "+q.cls);
+    var h=el("h3"); h.appendChild(el("span",null,q.t)); h.appendChild(el("em",null,q.sub)); box.appendChild(h);
+    var hit=open.filter(q.f);
+    if(!hit.length) box.appendChild(el("div","empty","—"));
+    else appendRows(box,hit);
+    grid.appendChild(box);
+  });
+  main.appendChild(grid);
+}
+function viewList(main,filter,emptyMsg){
+  var hit=tasks().filter(filter);
+  if(!hit.length){ main.appendChild(el("div","empty",emptyMsg)); return; }
+  appendRows(main,hit);
+}
+
+/* ---------- the file format ----------
+   One serializer, one parser, and a round-trip test between them. Every block ends
+   with its "^id", which is what makes block boundaries unambiguous: without it, two
+   adjacent text blocks are indistinguishable from one block with a blank line in it. */
+
+function estToken(m){
+  if(m>=60) return (m%60===0 ? (m/60) : (m/60).toFixed(1))+"h";
+  return m+"m";
+}
+function parseEst(tok){
+  var m=/^([\d.]+)(m|h)$/.exec(tok);
+  if(!m) return null;
+  var n=parseFloat(m[1]);
+  return Math.round(m[2]==="h" ? n*60 : n);
+}
+function realmLine(){
+  var ds=Object.keys(REALM);
+  if(!ds.length) return null;
+  return "<!-- domains: "+ds.map(function(d){ return d+"="+REALM[d]; }).join(", ")+" -->";
+}
+function serializeDoc(items){
+  var out=[];
+  var rl=realmLine();
+  if(rl){ out.push(rl); out.push(""); }
+  items.forEach(function(it){
+    var pad=new Array((it.depth||0)+1).join("  ");
+    var block=[];
+    if(it.kind==="head"){
+      out.push("");
+      block.push("## "+it.text);
+    } else if(it.kind==="note"){
+      it.text.split("\n").forEach(function(l){ block.push(l===""?"":pad+l); });
+    } else {
+      var lines=it.text.split("\n");
+      var bits=[(pad+"- ["+(it.state===" "?" ":it.state)+"] "+lines[0]).replace(/\s+$/,"")];
+      if(it.domain) bits.push("#"+it.domain);
+      if(it.imp) bits.push("!"+it.imp);
+      if(it.est) bits.push("~"+estToken(it.est));
+      if(it.due) bits.push("@"+it.due);
+      if(it.slot) bits.push(">"+it.slot.replace(/\s/g,""));
+      else if(it.sched) bits.push(">?");
+      if(it.link) bits.push("["+(it.link.title||"link")+"]("+it.link.url+")");
+      block.push(bits.join("  "));
+      for(var i=1;i<lines.length;i++) block.push(pad+"      "+lines[i]);
+      if(it.details){
+        block.push("");                                  // blank line: title above, details below
+        it.details.split("\n").forEach(function(l){ block.push(l===""?"":pad+"      "+l); });
+      }
+    }
+    var last=block.length-1;
+    block[last] = (block[last]==="" ? "" : block[last]+"  ") + "^" + it.id;
+    out=out.concat(block);
+  });
+  return out.join("\n").replace(/^\n+/,"")+"\n";
+}
+
+function parseDoc(text){
+  var lines=String(text).replace(/\r\n?/g,"\n").split("\n");
+  // The domain table rides at the top of the file. Without it a second device
+  // would not know which domains are Work and which are Personal.
+  for(var k=0;k<lines.length && k<5;k++){
+    var rm=/^\s*<!--\s*domains:\s*(.*?)\s*-->\s*$/.exec(lines[k]);
+    if(!rm) { if(lines[k].trim()!=="") break; else continue; }
+    var map={};
+    rm[1].split(",").forEach(function(pair){
+      var kv=pair.split("=");
+      if(kv.length===2 && kv[0].trim()) map[kv[0].trim()]=(kv[1].trim()==="Work"?"Work":"Personal");
+    });
+    if(Object.keys(map).length) REALM=map;
+    lines.splice(k,1);
+    break;
+  }
+  var items=[], buf=[];
+  var idRe=/(?:\s+|^)\^(\S+)\s*$/;
+  for(var i=0;i<lines.length;i++){
+    var raw=lines[i];
+    var m=idRe.exec(raw);
+    if(!m){
+      if(raw.trim()!=="" || buf.length) buf.push(raw);
+      continue;
+    }
+    buf.push(raw.replace(idRe,""));
+    items.push(blockFrom(buf,m[1]));
+    buf=[];
+  }
+  if(buf.length && buf.join("").trim()) items.push(blockFrom(buf,null));
+  // keep new ids from colliding with parsed ones
+  items.forEach(function(it){ var n=parseInt(String(it.id).replace(/\D/g,""),10); if(n>uid) uid=n; });
+  return items;
+}
+
+function dedent(line,n){ return line.replace(new RegExp("^ {0,"+n+"}"),""); }
+
+function blockFrom(ls,id){
+  var first=ls[0];
+  var h=/^\s*##\s+(.*)$/.exec(first);
+  if(h) return T({kind:"head",state:" ",text:h[1].replace(/\s+$/,""),depth:0,id:id});
+
+  var t=/^(\s*)- \[([ xX\-])\](?:\s(.*))?$/.exec(first);
+  if(!t){
+    var pad0=/^(\s*)/.exec(first)[1].length;
+    return T({kind:"note",state:" ",depth:Math.floor(pad0/2),id:id,
+              text:ls.map(function(l){ return dedent(l,pad0); }).join("\n").replace(/\s+$/,"")});
+  }
+
+  var pad=t[1].length, o={kind:"task",state:(t[2].toLowerCase()===" "?" ":t[2].toLowerCase()),
+                          depth:Math.floor(pad/2), id:id};
+  var rest=t[3]||"";
+  // Strip trailing tokens one at a time. Each pattern is tight so ordinary prose
+  // ending in "#42" or "!" is not mistaken for a property.
+  var go=true, m2;
+  while(go){
+    go=false;
+    if((m2=/\s+\[([^\]]*)\]\((\S+)\)$/.exec(rest))){ o.link={title:m2[1],url:m2[2]}; rest=rest.slice(0,m2.index); go=true; continue; }
+    if((m2=/\s+#([A-Za-z][\w-]*)$/.exec(rest))){ o.domain=m2[1]; rest=rest.slice(0,m2.index); go=true; continue; }
+    if((m2=/\s+!([123])$/.exec(rest))){ o.imp=+m2[1]; rest=rest.slice(0,m2.index); go=true; continue; }
+    if((m2=/\s+~([\d.]+[mh])$/.exec(rest))){ o.est=parseEst(m2[1]); rest=rest.slice(0,m2.index); go=true; continue; }
+    if((m2=/\s+@(\d{4}-\d{2}-\d{2})$/.exec(rest))){ o.due=m2[1]; rest=rest.slice(0,m2.index); go=true; continue; }
+    if((m2=/\s+>(\S+)$/.exec(rest))){
+      if(m2[1]==="?") o.sched=true; else o.slot=m2[1];
+      rest=rest.slice(0,m2.index); go=true; continue;
+    }
+  }
+  o.text=rest.replace(/\s+$/,"");
+
+  var tail=ls.slice(1), blankAt=-1;
+  for(var i=0;i<tail.length;i++){ if(tail[i].trim()===""){ blankAt=i; break; } }
+  var cont = (blankAt<0 ? tail : tail.slice(0,blankAt));
+  var det  = (blankAt<0 ? []   : tail.slice(blankAt+1));
+  if(cont.length) o.text = o.text+"\n"+cont.map(function(l){ return dedent(l,pad+6); }).join("\n");
+  if(det.length){
+    var d=det.map(function(l){ return dedent(l,pad+6); }).join("\n").replace(/\s+$/,"");
+    if(d!=="") o.details=d;
+  }
+  return T(o);
+}
+
+function rawBlock(){
+  return el("pre","raw", serializeDoc(state.items));
+}
+
+/* ---------- chrome render ---------- */
+var VIEWS=[["doc","Document"],["domain","By domain"],["matrix","Matrix"],["waiting","Waiting on"],["quick","Under 15m"],["read","Links"]];
+function renderTabs(){
+  var t=document.getElementById("tabs"); t.innerHTML="";
+  VIEWS.forEach(function(v){
+    var b=el("button","tab",v[1]); b.setAttribute("role","tab");
+    b.setAttribute("aria-selected", state.view===v[0]?"true":"false");
+    b.addEventListener("click",function(){ state.view=v[0]; state.open=null; render(); });
+    t.appendChild(b);
+  });
+}
+function renderStrip(){
+  var s=document.getElementById("strip"); s.innerHTML="";
+  ["All","Work","Personal"].forEach(function(r){
+    var b=el("button","dchip realm",r); b.setAttribute("aria-pressed",state.realm===r?"true":"false");
+    b.addEventListener("click",function(){ state.realm=r; state.domain=null; render(); }); s.appendChild(b);
+  });
+  s.appendChild(el("span","sep"));
+  var counts={}; state.items.forEach(function(it){ if(it.kind==="task"&&it.state!=="x"&&it.domain)
+    counts[it.domain]=(counts[it.domain]||0)+1; });
+  domains().filter(function(d){ return state.realm==="All" || REALM[d]===state.realm; }).forEach(function(d){
+    var b=el("button","dchip",d+(counts[d]?"  "+counts[d]:""));
+    b.setAttribute("aria-pressed",state.domain===d?"true":"false");
+    b.addEventListener("click",function(){ state.domain = state.domain===d?null:d; render(); });
+    s.appendChild(b);
+  });
+}
+document.addEventListener("keydown",function(ev){
+  if(ev.key==="Escape" && state.open){ closeDrawer(openItem(),false); }
+});
+Array.prototype.forEach.call(document.querySelectorAll(".foot-in .addline"),function(b){
+  b.addEventListener("click",function(){
+    if(state.view!=="doc"){ state.view="doc"; state.open=null; }
+    var nn=T({kind:b.dataset.add,state:" ",text:""});
+    state.items.push(nn); save(); render(nn.id);
+    var node=document.querySelector('.row[data-id="'+nn.id+'"] .txt');
+    if(node) node.scrollIntoView({block:"center"});
+  });
+});
+wireGrabBar();
+document.addEventListener("keydown",function(ev){ if(ev.key==="Escape" && grabId) setGrab(null); });
+document.getElementById("rawtog").addEventListener("click",function(){
+  state.raw=!state.raw; this.setAttribute("aria-pressed",state.raw?"true":"false"); render();
+});
+
+loadCfg();
+render();
+if(configured()) pull(); else setStatus("local");
+
+document.getElementById("status").addEventListener("click",function(){
+  state.settings=!state.settings; render();
+});
+
+// test hook: the format is the contract, so it gets tested directly
+window.__cm = {
+  serialize: function(){ return serializeDoc(state.items); },
+  parse: parseDoc,
+  items: function(){ return state.items; },
+  cfg: cfg, sync: sync, pull: pull, push: push,
+  setCfg: function(u,t){ cfg.url=u; cfg.token=t; saveCfg(); },
+  setItems: function(a){ state.items=a; save(); render(); }
+};
+})();
+</script>
+
+</html>
