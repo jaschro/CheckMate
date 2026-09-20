@@ -1328,6 +1328,7 @@ function render(focusId,atEnd){
   if(state.raw){ main.appendChild(rawBlock()); return; }
   if(state.view==="doc") viewDoc(main);
   else if(state.view==="domain") viewGrouped(main);
+  else if(state.view==="prio") viewPriority(main);
   else if(state.view==="matrix") viewMatrix(main);
   else if(state.view==="waiting") viewList(main,function(it){return it.state==="-";},"Nothing is waiting on anybody else.");
   else if(state.view==="quick") viewList(main,function(it){return it.state!=="x" && it.est && it.est<=15;},"No open items under 15 minutes.");
@@ -1386,6 +1387,24 @@ function viewGrouped(main){
     var h=el("div","grouphead"); h.appendChild(el("span",null,k));
     h.appendChild(el("span","n",(REALM[k]||"unfiled")+" · "+byDom[k].length));
     main.appendChild(h); appendRows(main,byDom[k]);
+  });
+}
+function viewPriority(main){
+  var list=tasks();
+  if(!list.length){ main.appendChild(el("div","empty","Nothing here with these filters.")); return; }
+  var buckets={"1":[],"2":[],"3":[],"0":[]};
+  list.forEach(function(it){ buckets[String(it.imp||0)].push(it); });
+  [["1","!1","important"],
+   ["2","!2","secondary"],
+   ["3","!3","someday"],
+   ["0","unrated","no importance set"]].forEach(function(b){
+    var arr=buckets[b[0]];
+    if(!arr.length) return;
+    var h=el("div","grouphead");
+    h.appendChild(el("span",null,b[1]));
+    h.appendChild(el("span","n", b[2]+" \u00b7 "+arr.length));
+    main.appendChild(h);
+    appendRows(main,arr);
   });
 }
 function viewMatrix(main){
@@ -1558,7 +1577,7 @@ function rawBlock(){
 }
 
 /* ---------- chrome render ---------- */
-var VIEWS=[["doc","Document"],["domain","By domain"],["matrix","Matrix"],["waiting","Waiting on"],["quick","Under 15m"],["read","Links"]];
+var VIEWS=[["doc","Document"],["domain","By domain"],["prio","By priority"],["matrix","Matrix"],["waiting","Waiting on"],["quick","Under 15m"],["read","Links"]];
 function renderTabs(){
   var t=document.getElementById("tabs"); t.innerHTML="";
   VIEWS.forEach(function(v){
