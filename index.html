@@ -123,6 +123,7 @@ main{max-width:820px;margin:0 auto;padding:0 16px;padding-block:14px 80px}
 .m-due{color:var(--ink-2);border-color:var(--rule)}
 .m-due.urgent{color:var(--brick);border-color:var(--brick);font-weight:600}
 .m-slot{color:var(--ochre);background:var(--ochre-soft)}
+.m-sched{color:var(--ochre);border-color:var(--ochre)}
 .m-link{color:var(--accent);border-color:var(--rule);text-decoration:none}
 .m-note{color:var(--ink-3);border-color:var(--rule)}
 .dots{font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-left:6px;padding:0 3px;opacity:0;vertical-align:1px}
@@ -351,6 +352,8 @@ pre.raw{margin:10px 0 0;padding:12px;background:var(--surface);border:1px solid 
       <dd>turn a line of text into a task</dd>
       <dt><b>&#8942;</b></dt><dd>open properties &mdash; domain, priority, estimate, due date, link, notes</dd>
       <dt><b>&#8801;</b></dt><dd>this line has notes behind it</dd>
+      <dt><b>schedule?</b></dt><dd>marked for scheduling &mdash; ask Claude to schedule your marked items and it books the free gaps</dd>
+      <dt><b>&rarr; Thu3:15p</b></dt><dd>the gap it booked</dd>
     </dl>
 
     <h4>writing</h4>
@@ -416,6 +419,13 @@ function domains(){
 }
 // Only the domains something is actually filed under. A filter for an empty domain
 // is a button that can only ever show you nothing.
+// A one-word #tag is a domain on sight. A multi-word one ("Personal Finance")
+// would otherwise be indistinguishable from prose, so it counts only when the
+// table at the top of the file already names it - which it always does, because
+// the table is written from every domain in use.
+function knownDomain(d){
+  return d.indexOf(" ")<0 || Object.prototype.hasOwnProperty.call(REALM,d);
+}
 function usedDomains(){
   var seen={};
   state.items.forEach(function(it){ if(it.kind==="task" && it.domain) seen[it.domain]=1; });
@@ -1296,7 +1306,11 @@ function buildRow(it){
     if(it.est && !lean) meta.appendChild(chip("m m-est","~"+fmtEst(it.est),it));
     if(it.due && !lean) meta.appendChild(chip("m m-due"+(isUrgent(it)?" urgent":""),fmtDue(it.due),it));
     if(it.slot) meta.appendChild(chip("m m-slot","→ "+it.slot,it));
-    else if(it.sched) meta.appendChild(chip("m m-slot",">?",it));
+    else if(it.sched){
+      var sc=chip("m m-sched","schedule?",it);
+      sc.title="Marked for scheduling. Ask Claude to schedule your marked items.";
+      meta.appendChild(sc);
+    }
     if(it.link){ var a=el("a","m m-link","↗ link"); a.href=it.link.url; a.target="_blank"; a.rel="noopener";
       a.title=it.link.title||it.link.url; meta.appendChild(a); }
     if(it.details) meta.appendChild(chip("m m-note","≡",it));
@@ -1390,11 +1404,16 @@ function onKey(ev,it,node){
 /* ---------- drawer ---------- */
 // Pull every field's current value off the DOM. Save, the X and Esc all call this,
 // so there is no way out of the drawer that silently drops what you typed.
+// The domain rides in the file as "#Name" and in the table as "Name=Realm", so
+// the few characters those two forms depend on cannot appear inside a name.
+function cleanDomain(v){
+  return String(v||"").replace(/[#=,\[\]()~!@>^]/g,"").replace(/\s+/g," ").trim().slice(0,40);
+}
 function readDrawer(it){
   var d=document.querySelector(".drawer");
   if(!d) return false;
   function f(name){ var e=d.querySelector('[data-f="'+name+'"]'); return e ? e.value : null; }
-  var dom=(f("domain")||"").trim();
+  var dom=cleanDomain(f("domain"));
   it.domain = dom || null;
   if(dom && !REALM[dom]) REALM[dom]="Personal";
   var est=f("est"); it.est = est ? +est : null;
@@ -1698,14 +1717,20 @@ function parseEst(tok){
   var n=parseFloat(m[1]);
   return Math.round(m[2]==="h" ? n*60 : n);
 }
-function realmLine(){
-  var ds=Object.keys(REALM);
+// Every domain in use goes in the table, not just the ones the picker has seen.
+// A multi-word domain is unreadable without it, and an absent entry means the
+// same as "Personal" anyway, so writing it out loses nothing.
+function realmLine(items){
+  var seen={}, ds=[];
+  Object.keys(REALM).forEach(function(d){ if(!seen[d]){ seen[d]=1; ds.push(d); } });
+  (items||state.items).forEach(function(it){
+    if(it.domain && !seen[it.domain]){ seen[it.domain]=1; ds.push(it.domain); } });
   if(!ds.length) return null;
-  return "<!-- domains: "+ds.map(function(d){ return d+"="+REALM[d]; }).join(", ")+" -->";
+  return "<!-- domains: "+ds.map(function(d){ return d+"="+(REALM[d]||"Personal"); }).join(", ")+" -->";
 }
 function serializeDoc(items){
   var out=[];
-  var rl=realmLine();
+  var rl=realmLine(items);
   if(rl){ out.push(rl); out.push(""); }
   items.forEach(function(it){
     var pad=new Array((it.depth||0)+1).join("  ");
@@ -1798,7 +1823,9 @@ function blockFrom(ls,id){
   while(go){
     go=false;
     if((m2=/\s+\[([^\]]*)\]\((\S+)\)$/.exec(rest))){ o.link={title:m2[1],url:m2[2]}; rest=rest.slice(0,m2.index); go=true; continue; }
-    if((m2=/\s+#([A-Za-z][\w-]*)$/.exec(rest))){ o.domain=m2[1]; rest=rest.slice(0,m2.index); go=true; continue; }
+    if((m2=/\s+#([A-Za-z][\w-]*(?: [A-Za-z][\w-]*){0,3})$/.exec(rest)) && knownDomain(m2[1])){
+      o.domain=m2[1]; rest=rest.slice(0,m2.index); go=true; continue;
+    }
     if((m2=/\s+=(Work|Personal)$/.exec(rest))){ o.realm=m2[1]; rest=rest.slice(0,m2.index); go=true; continue; }
     if((m2=/\s+!([123])$/.exec(rest))){ o.imp=+m2[1]; rest=rest.slice(0,m2.index); go=true; continue; }
     if((m2=/\s+~([\d.]+[mh])$/.exec(rest))){ o.est=parseEst(m2[1]); rest=rest.slice(0,m2.index); go=true; continue; }
