@@ -113,6 +113,11 @@ main{max-width:820px;margin:0 auto;padding:0 16px;padding-block:14px 80px}
 .body{flex:1 1 auto;min-width:0;padding-top:1px;display:flex;align-items:flex-start;gap:12px}
 .row.head .body,.row.note .body{display:block}
 .txt{outline:none;word-wrap:break-word;overflow-wrap:anywhere;white-space:pre-wrap;flex:1 1 auto;min-width:0}
+/* formatting markers: faint while you edit the line, gone when you leave it */
+.txt .mk{color:var(--ink-3);opacity:.6;font-weight:400;font-style:normal;text-decoration:none}
+.txt:not(:focus) .mk{display:none}
+.txt b{font-weight:600}
+.txt u{text-decoration-thickness:1px;text-underline-offset:2px}
 .row.done .txt{color:var(--done);text-decoration:line-through;text-decoration-thickness:1px}
 .row.note .txt{color:var(--ink-2)}
 .row.head .txt{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:500}
@@ -373,11 +378,13 @@ pre.raw{margin:10px 0 0;padding:12px;background:var(--surface);border:1px solid 
     <dl class="kbdonly">
       <dt><b>Enter</b></dt><dd>on a task, start the next one; on plain text, a new line</dd>
       <dt><b>Ctrl+Enter</b></dt><dd>end a block of text</dd>
+      <dt><b>Ctrl+B</b> <b>I</b> <b>U</b></dt><dd>bold, italic, underline &mdash; the selection, or the word under the caret</dd>
       <dt><b>&uarr;</b> <b>&darr;</b></dt><dd>move the caret between lines</dd>
       <dt><b>Esc</b></dt><dd>close the properties panel, saving what you typed</dd>
     </dl>
     <dl class="touchonly">
       <dt>tap a line</dt><dd>edit it</dd>
+      <dt><b>**</b> <b>*</b> <b>&lt;u&gt;</b></dt><dd>type <b>**bold**</b>, <b>*italic*</b> or <b>&lt;u&gt;underline&lt;/u&gt;</b> around words</dd>
       <dt>tap away</dt><dd>close the properties panel, saving what you typed</dd>
     </dl>
 
@@ -692,6 +699,27 @@ function push(){
     .catch(function(){ setStatus("offline"); return false; });
 }
 
+// Somebody else - Claude through the connector, another device - may have changed
+// the list while this tab sat open. Look again when you come back to it and every
+// couple of minutes while it is on screen, but only when nothing here is unsaved
+// and you are not mid-edit. A quiet refresh beats a "changed elsewhere" panel.
+function busy(){
+  var a=document.activeElement;
+  var typing=!!(a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)));
+  return typing || !!state.open || !!grabId || !!state.selecting || !!state.settings;
+}
+function freshen(){
+  if(!configured() || sync.status!=="saved" || busy() || document.hidden) return Promise.resolve(false);
+  return api("/history").then(function(r){ return r.ok ? r.json() : null; }).then(function(h){
+    if(!h || h.head===sync.rev) return false;
+    if(sync.status!=="saved" || busy()) return false;     // something started while we asked
+    return pull();
+  }).catch(function(){ return false; });
+}
+document.addEventListener("visibilitychange",function(){ if(!document.hidden) freshen(); });
+window.addEventListener("focus",function(){ freshen(); });
+setInterval(freshen,120000);
+
 function scheduleSave(){
   if(!configured()) return;
   if(sync.status!=="conflict") setStatus("saving");
@@ -894,20 +922,110 @@ var ZW="\u200B";                       // sentinel: Chrome will not place the ca
                                         // after a trailing newline without one
 function getText(node){ return node.textContent.replace(/\u200B/g,""); }
 function renderText(t){ return /\n$/.test(t) ? t+ZW : t; }
-function setCaretIndex(node,i){
-  var tn=node.firstChild;
-  if(!tn || tn.nodeType!==3){ tn=document.createTextNode(node.textContent||""); node.innerHTML=""; node.appendChild(tn); }
-  var r=document.createRange();
-  r.setStart(tn, Math.max(0,Math.min(i, tn.textContent.length)));
-  r.collapse(true);
+
+/* ---------- inline formatting ---------- */
+// **bold**, *italic*, <u>underline</u>. The markers stay in the text: the file is
+// the truth and stays readable as markdown. They are drawn faint while you edit a
+// line and hidden when you leave it. Because they are real characters in the DOM,
+// textContent is always exactly the stored text, so every caret offset still works.
+function escHTML(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function mk(m){ return '<span class="mk">'+m+'</span>'; }
+function renderInline(t){
+  var h=escHTML(t);
+  h=h.replace(/&lt;u&gt;([^\n]+?)&lt;\/u&gt;/g,function(_,x){ return mk("&lt;u&gt;")+"<u>"+x+"</u>"+mk("&lt;/u&gt;"); });
+  h=h.replace(/\*\*\*(?=[^\s*])([^\n]*?[^\s*])\*\*\*/g,function(_,x){ return mk("***")+"<b><i>"+x+"</i></b>"+mk("***"); });
+  h=h.replace(/\*\*(?=[^\s*])([^\n]*?[^\s*])\*\*/g,function(_,x){ return mk("**")+"<b>"+x+"</b>"+mk("**"); });
+  h=h.replace(/(^|[^*])\*(?=[^\s*])([^*\n]*?[^\s*])\*(?!\*)/gm,function(_,p,x){ return p+mk("*")+"<i>"+x+"</i>"+mk("*"); });
+  return h;
+}
+function paint(node,t){ node.innerHTML=renderInline(renderText(t)); }
+
+// Offsets count characters of textContent, across however many text nodes the
+// formatting split the line into. At a boundary, prefer the side you are typing
+// into: after an opening marker, into the formatted text; before a closing one,
+// still inside it.
+function pointAt(node,i){
+  var w=document.createTreeWalker(node,NodeFilter.SHOW_TEXT,null), n, left=Math.max(0,i), last=null;
+  while((n=w.nextNode())){
+    last=n;
+    if(left<n.length) return {n:n,o:left};
+    if(left===n.length){
+      var inMk=n.parentNode && n.parentNode.classList && n.parentNode.classList.contains("mk");
+      if(!inMk) return {n:n,o:left};
+    }
+    left-=n.length;
+  }
+  if(last) return {n:last,o:last.length};
+  var t=document.createTextNode(""); node.appendChild(t); return {n:t,o:0};
+}
+function setCaretIndex(node,i){ setSelOffsets(node,i,i); }
+function setSelOffsets(node,a,b){
+  var p=pointAt(node,a), q=(a===b)?p:pointAt(node,b);
+  var r=document.createRange(); r.setStart(p.n,p.o); r.setEnd(q.n,q.o);
   var sel=window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
 }
+function selOffsets(node){
+  var sel=window.getSelection();
+  if(!sel.rangeCount) return {s:0,e:0};
+  var r=sel.getRangeAt(0);
+  if(!node.contains(r.startContainer)) return {s:0,e:0};
+  var a=document.createRange(); a.selectNodeContents(node); a.setEnd(r.startContainer,r.startOffset);
+  var b=document.createRange(); b.selectNodeContents(node); b.setEnd(r.endContainer,r.endOffset);
+  return {s:a.toString().length, e:b.toString().length};
+}
+
+// Ctrl/Cmd+B, I, U. With nothing selected, act on the word under the caret.
+var MARKS={b:["**","**"], i:["*","*"], u:["<u>","</u>"]};
+function stars(t,at,dir){ var n=0; while(t.charAt(dir<0?at-1-n:at+n)==="*") n++; return n; }
+function toggleMark(node,k){
+  var t=getText(node), r=selOffsets(node), s=Math.min(r.s,t.length), e=Math.min(r.e,t.length);
+  if(s===e){
+    var a=s, b=s, W=/[^\s*<>]/;
+    while(a>0 && W.test(t.charAt(a-1))) a--;
+    while(b<t.length && W.test(t.charAt(b))) b++;
+    if(a===b){                              // no word here: open a pair, caret inside
+      var m0=MARKS[k];
+      t=t.slice(0,s)+m0[0]+m0[1]+t.slice(s);
+      paint(node,t); setCaretIndex(node,s+m0[0].length); return t;
+    }
+    s=a; e=b;
+  }
+  if(k==="u"){
+    if(t.slice(s-3,s)==="<u>" && t.slice(e,e+4)==="</u>"){ t=t.slice(0,s-3)+t.slice(s,e)+t.slice(e+4); s-=3; e-=3; }
+    else if(t.slice(s,s+3)==="<u>" && t.slice(e-4,e)==="</u>"){ t=t.slice(0,s)+t.slice(s+3,e-4)+t.slice(e); e-=7; }
+    else { t=t.slice(0,s)+"<u>"+t.slice(s,e)+"</u>"+t.slice(e); s+=3; e+=3; }
+  } else {
+    // count the stars hugging the selection: 2 = bold, 1 = italic, 3 = both
+    var nb=Math.min(stars(t,s,-1),stars(t,e,1));
+    var want = k==="b" ? 2 : 1;
+    var has  = k==="b" ? nb>=2 : (nb%2===1);
+    if(has){ t=t.slice(0,s-want)+t.slice(s,e)+t.slice(e+want); s-=want; e-=want; }
+    else { var m=MARKS[k]; t=t.slice(0,s)+m[0]+t.slice(s,e)+m[1]+t.slice(e); s+=want; e+=want; }
+  }
+  paint(node,t); setSelOffsets(node,s,e);
+  return t;
+}
+// Restyle while typing, but only when something could have changed the
+// formatting. Replacing the line's HTML resets the browser's own undo, so plain
+// typing inside a word is left alone and Ctrl+Z still walks back your keystrokes.
+function markSig(t){ return (t.match(/\*+|<\/?u>/g)||[]).join("|"); }
+function restyle(node,prevSig,force){
+  var t=getText(node), sig=markSig(t);
+  var sel=window.getSelection(), inMk=false;
+  if(sel.rangeCount){ var c=sel.getRangeAt(0).startContainer; var p=c.nodeType===3?c.parentNode:c;
+    inMk=!!(p && p.closest && p.closest(".mk")); }
+  if(!force && sig===prevSig && !inMk) return sig;
+  var i=caretIndex(node);
+  paint(node,t); setCaretIndex(node,i);
+  return sig;
+}
+
 function insertBreak(node){
   var i=caretIndex(node);
-  var t=node.textContent.replace(/\u200B/g,"");
+  var t=getText(node);
   if(i>t.length) i=t.length;
   var next = t.slice(0,i) + "\n" + t.slice(i);
-  node.textContent = renderText(next);
+  paint(node,next);
   setCaretIndex(node, i+1);
 }
 
@@ -1269,7 +1387,14 @@ function buildRow(it){
   row.appendChild(g);
 
   var body=el("div","body");
-  var txt=el("span","txt",renderText(it.text));
+  var txt=el("span","txt"); paint(txt,it.text);
+  var sig=markSig(it.text||"");
+  txt.addEventListener("input",function(ev){
+    if(ev.isComposing) return;
+    var paste = ev.inputType && /^insertFrom|^deleteByDrag/.test(ev.inputType);
+    sig=restyle(txt,sig,paste);
+  });
+  txt.addEventListener("compositionend",function(){ sig=restyle(txt,sig,true); });
   body.addEventListener("mousedown",function(ev){
     if(state.selecting) return;
     if(ev.target!==body) return;          // chips and the dots keep their own behaviour
@@ -1292,7 +1417,7 @@ function buildRow(it){
   txt.addEventListener("blur",function(){
       var changed=commitText(it,getText(txt));
       if(changed && !navigating) render(it.id,true);
-      else txt.textContent=renderText(it.text);   // drop any stale caret sentinel
+      else paint(txt,it.text);                    // drop any stale caret sentinel, re-hide markers
     });
   txt.addEventListener("keydown",function(ev){ onKey(ev,it,txt); });
   body.appendChild(txt);
@@ -1368,6 +1493,15 @@ function commitText(it,raw){
 function onKey(ev,it,node){
   var mod = ev.ctrlKey || ev.altKey || ev.metaKey;
 
+  if((ev.ctrlKey||ev.metaKey) && !ev.altKey && !ev.shiftKey){
+    var fk=String(ev.key).toLowerCase();
+    if(fk==="b"||fk==="i"||fk==="u"){
+      ev.preventDefault();                  // the browser's own bold would add tags the file cannot hold
+      commitText(it,toggleMark(node,fk));
+      return;
+    }
+  }
+
   if(!mod && !ev.shiftKey && (ev.key==="ArrowUp"||ev.key==="ArrowDown")){
     var e1=lineEdges(node);
     if(ev.key==="ArrowUp" && e1.first){ ev.preventDefault(); navLine(it,node,-1,e1.x); return; }
@@ -1410,7 +1544,14 @@ function onKey(ev,it,node){
       ? newTask({ text:"", domain:it.domain, depth: it.kind==="head" ? 0 : it.depth })
       : T({ kind:"note", state:" ", text:"", domain:null,
             depth: it.kind==="head" ? 0 : it.depth });
-    var i=state.items.indexOf(it); state.items.splice(i+1,0,n); save(); render(n.id);
+    var i=state.items.indexOf(it);
+    // At the very start of a line that has text, Enter pushes the line down and
+    // opens a new one above it - the caret stays with your text.
+    if(caretIndex(node)===0 && getText(node)!=="" && it.kind!=="head"){
+      state.items.splice(i,0,n); save(); render(it.id); setCaretIndex(document.querySelector('.row[data-id="'+it.id+'"] .txt'),0);
+      return;
+    }
+    state.items.splice(i+1,0,n); save(); render(n.id);
     return;
   } else if(ev.key==="Backspace" && getText(node)===""){
     var idx=state.items.indexOf(it);
@@ -1757,7 +1898,13 @@ function serializeDoc(items){
       out.push("");
       block.push("## "+it.text);
     } else if(it.kind==="note"){
-      it.text.split("\n").forEach(function(l){ block.push(l===""?"":pad+l); });
+      // A blank line at the top of a note is written as <br>: a bare blank line
+      // there would be read back as the gap between two blocks, and lost.
+      var nls=it.text.split("\n"), lead=nls.some(function(l){ return l!==""; });  // an all-blank note stays blank
+      nls.forEach(function(l){
+        if(l!=="") lead=false;
+        block.push(l==="" ? (lead ? pad+"<br>" : "") : pad+l);
+      });
     } else {
       var lines=it.text.split("\n");
       var bits=[(pad+"- ["+(it.state===" "?" ":it.state)+"] "+lines[0]).replace(/\s+$/,"")];
@@ -1828,8 +1975,10 @@ function blockFrom(ls,id){
   var t=/^(\s*)- \[([ xX\-])\](?:\s(.*))?$/.exec(first);
   if(!t){
     var pad0=/^(\s*)/.exec(first)[1].length;
+    var nl=ls.map(function(l){ return dedent(l,pad0); });
+    for(var k=0;k<nl.length && /^<br\s*\/?>$/i.test(nl[k].trim());k++) nl[k]="";   // leading blank lines
     return T({kind:"note",state:" ",depth:Math.floor(pad0/2),id:id,
-              text:ls.map(function(l){ return dedent(l,pad0); }).join("\n").replace(/\s+$/,"")});
+              text:nl.join("\n").replace(/\s+$/,"")});
   }
 
   var pad=t[1].length, o={kind:"task",state:(t[2].toLowerCase()===" "?" ":t[2].toLowerCase()),
@@ -2031,6 +2180,7 @@ window.__cm = {
   cfg: cfg, sync: sync, pull: pull, push: push,
   setCfg: function(u,t){ cfg.url=u; cfg.token=t; saveCfg(); },
   setItems: function(a){ state.items=a; save(); render(); },
+  freshen: function(){ return freshen(); },
   moveTo: moveTo, moveItem: moveItem, realmOf: realmOf, render: function(){ render(); }
 };
 })();
