@@ -1822,8 +1822,22 @@ function buildDrawer(it){
 }
 
 /* ---------- views ---------- */
+// Every change redraws the list. For that instant the list is empty, the page
+// is shorter than where you were scrolled, and the browser snaps you to the top.
+// Hold the page's height through the redraw, then put you back where you were.
 function render(focusId,atEnd){
-  var main=document.getElementById("main"); main.innerHTML="";
+  var main=document.getElementById("main");
+  var keepY=window.scrollY||window.pageYOffset||0;
+  main.style.minHeight=main.offsetHeight+"px";
+  main.innerHTML="";
+  try { draw(main); }
+  finally {
+    main.style.minHeight="";
+    if(Math.abs((window.scrollY||0)-keepY)>1) window.scrollTo(0,keepY);
+  }
+  if(focusId) focusRow(focusId,atEnd);    // a new line off screen is still brought into view
+}
+function draw(main){
   renderTabs(); renderStrip();
 
   paintStatus(); paintUndo(); selBar(); footHint();
@@ -1838,8 +1852,6 @@ function render(focusId,atEnd){
   else if(state.view==="waiting") viewList(main,function(it){return it.state==="-";},"Nothing is waiting on anybody else.");
   else if(state.view==="quick") viewList(main,function(it){return it.state!=="x" && it.est && it.est<=15;},"No open items under 15 minutes.");
   else if(state.view==="read") viewList(main,function(it){return it.state!=="x" && it.link;},"No saved links.");
-
-  if(focusId) focusRow(focusId,atEnd);
 }
 function focusRow(id,atEnd){
   var r=document.querySelector('.row[data-id="'+id+'"] .txt'); if(!r) return;
@@ -2129,7 +2141,7 @@ function renderTabs(){
   VIEWS.forEach(function(v){
     var b=el("button","tab",v[1]); b.setAttribute("role","tab");
     b.setAttribute("aria-selected", state.view===v[0]?"true":"false");
-    b.addEventListener("click",function(){ state.view=v[0]; state.open=null; render(); });
+    b.addEventListener("click",function(){ state.view=v[0]; state.open=null; render(); window.scrollTo(0,0); });
     t.appendChild(b);
   });
 }
@@ -2141,7 +2153,7 @@ function renderStrip(){
     var b=el("button","dchip realm",r[0]);
     b.setAttribute("aria-pressed",state[r[1]]?"true":"false");
     b.addEventListener("click",function(){
-      state[r[1]]=!state[r[1]]; fixDomain(); render();
+      state[r[1]]=!state[r[1]]; fixDomain(); render(); window.scrollTo(0,0);
     });
     pill.appendChild(b);
   });
@@ -2165,7 +2177,7 @@ function renderStrip(){
     b.addEventListener("click",function(){
       state.domain = state.domain===d?null:d;
       state.stripOpen=false;              // you have made your pick; fold it back
-      render();
+      render(); window.scrollTo(0,0);     // a different list starts at its top
     });
     s.appendChild(b);
   });
