@@ -930,13 +930,29 @@ function renderText(t){ return /\n$/.test(t) ? t+ZW : t; }
 // textContent is always exactly the stored text, so every caret offset still works.
 function escHTML(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 function mk(m){ return '<span class="mk">'+m+'</span>'; }
+// Each rule swaps the markers it uses for a private placeholder character, so a
+// later rule can never match stars that an earlier one already claimed. The
+// placeholders become visible marker spans only at the very end.
+var PH={U:"\uE001",V:"\uE002",T:"\uE003",B:"\uE004",I:"\uE005",
+        BO:"\uE006",BC:"\uE007",IO:"\uE008",IC:"\uE009",E:"\uE00A",S:"\uE00B",L:"\uE00C",K:"\uE00D"};
 function renderInline(t){
-  var h=escHTML(t);
-  h=h.replace(/&lt;u&gt;([^\n]+?)&lt;\/u&gt;/g,function(_,x){ return mk("&lt;u&gt;")+"<u>"+x+"</u>"+mk("&lt;/u&gt;"); });
-  h=h.replace(/\*\*\*(?=[^\s*])([^\n]*?[^\s*])\*\*\*/g,function(_,x){ return mk("***")+"<b><i>"+x+"</i></b>"+mk("***"); });
-  h=h.replace(/\*\*(?=[^\s*])([^\n]*?[^\s*])\*\*/g,function(_,x){ return mk("**")+"<b>"+x+"</b>"+mk("**"); });
-  h=h.replace(/(^|[^*])\*(?=[^\s*])([^*\n]*?[^\s*])\*(?!\*)/gm,function(_,p,x){ return p+mk("*")+"<i>"+x+"</i>"+mk("*"); });
-  return h;
+  var h=escHTML(t.replace(/[\uE001-\uE00D]/g,""));
+  // \* is a literal star, \< a literal < and \\ a literal backslash: the escaping
+  // backslash hides like a marker, and the character it protects is invisible to
+  // every rule below. One pass, left to right, so \\* reads as backslash-then-*.
+  h=h.replace(/\\(\\|\*|&lt;)/g,function(_,x){ return PH.E+(x==="\\"?PH.K:x==="*"?PH.S:PH.L); });
+  h=h.replace(/&lt;u&gt;([^\n]+?)&lt;\/u&gt;/g,function(_,x){ return PH.U+"<u>"+x+"</u>"+PH.V; });
+  // explicit tags, for the rare spot where stars alone would be ambiguous
+  h=h.replace(/&lt;b&gt;([^\n]+?)&lt;\/b&gt;/g,function(_,x){ return PH.BO+"<b>"+x+"</b>"+PH.BC; });
+  h=h.replace(/&lt;i&gt;([^\n]+?)&lt;\/i&gt;/g,function(_,x){ return PH.IO+"<i>"+x+"</i>"+PH.IC; });
+  h=h.replace(/\*\*\*(?=[^\s*])([^\n]*?[^\s*])\*\*\*/g,function(_,x){ return PH.T+"<b><i>"+x+"</i></b>"+PH.T; });
+  h=h.replace(/\*\*(?=[^\s*])([^\n]*?[^\s*])\*\*/g,function(_,x){ return PH.B+"<b>"+x+"</b>"+PH.B; });
+  h=h.replace(/(^|[^*])\*(?=[^\s*])([^*\n]*?[^\s*])\*(?!\*)/gm,function(_,p,x){ return p+PH.I+"<i>"+x+"</i>"+PH.I; });
+  return h.replace(/\uE001/g,mk("&lt;u&gt;")).replace(/\uE002/g,mk("&lt;/u&gt;"))
+          .replace(/\uE006/g,mk("&lt;b&gt;")).replace(/\uE007/g,mk("&lt;/b&gt;"))
+          .replace(/\uE008/g,mk("&lt;i&gt;")).replace(/\uE009/g,mk("&lt;/i&gt;"))
+          .replace(/\uE003/g,mk("***")).replace(/\uE004/g,mk("**")).replace(/\uE005/g,mk("*"))
+          .replace(/\uE00A/g,mk("\\")).replace(/\uE00B/g,"*").replace(/\uE00C/g,"&lt;").replace(/\uE00D/g,"\\");
 }
 function paint(node,t){ node.innerHTML=renderInline(renderText(t)); }
 
@@ -974,36 +990,122 @@ function selOffsets(node){
   return {s:a.toString().length, e:b.toString().length};
 }
 
-// Ctrl/Cmd+B, I, U. With nothing selected, act on the word under the caret.
-var MARKS={b:["**","**"], i:["*","*"], u:["<u>","</u>"]};
-function stars(t,at,dir){ var n=0; while(t.charAt(dir<0?at-1-n:at+n)==="*") n++; return n; }
-function toggleMark(node,k){
-  var t=getText(node), r=selOffsets(node), s=Math.min(r.s,t.length), e=Math.min(r.e,t.length);
-  if(s===e){
-    var a=s, b=s, W=/[^\s*<>]/;
-    while(a>0 && W.test(t.charAt(a-1))) a--;
-    while(b<t.length && W.test(t.charAt(b))) b++;
-    if(a===b){                              // no word here: open a pair, caret inside
-      var m0=MARKS[k];
-      t=t.slice(0,s)+m0[0]+m0[1]+t.slice(s);
-      paint(node,t); setCaretIndex(node,s+m0[0].length); return t;
+// Ctrl/Cmd+B, I, U.
+// The markers are never edited directly. The line is read the way it is drawn -
+// each visible character with its bold / italic / underline flags - the flag is
+// flipped on the chosen range, and the whole line's markers are written out
+// again in one tidy form. However tangled a line got, formatting it once more
+// straightens it out, and what you see never changes except the range you chose.
+function flagsOf(t){
+  var box=document.createElement("span"); box.innerHTML=renderInline(t);
+  var w=document.createTreeWalker(box,NodeFilter.SHOW_TEXT,null), n, raw=0, chars=[];
+  while((n=w.nextNode())){
+    var mkr=n.parentNode.closest && n.parentNode.closest(".mk");
+    if(!mkr){
+      var b=!!n.parentNode.closest("b"), i=!!n.parentNode.closest("i"), u=!!n.parentNode.closest("u");
+      for(var k=0;k<n.data.length;k++) chars.push({c:n.data[k], b:b, i:i, u:u, raw:raw+k});
     }
-    s=a; e=b;
+    raw+=n.data.length;
   }
-  if(k==="u"){
-    if(t.slice(s-3,s)==="<u>" && t.slice(e,e+4)==="</u>"){ t=t.slice(0,s-3)+t.slice(s,e)+t.slice(e+4); s-=3; e-=3; }
-    else if(t.slice(s,s+3)==="<u>" && t.slice(e-4,e)==="</u>"){ t=t.slice(0,s)+t.slice(s+3,e-4)+t.slice(e); e-=7; }
-    else { t=t.slice(0,s)+"<u>"+t.slice(s,e)+"</u>"+t.slice(e); s+=3; e+=3; }
-  } else {
-    // count the stars hugging the selection: 2 = bold, 1 = italic, 3 = both
-    var nb=Math.min(stars(t,s,-1),stars(t,e,1));
-    var want = k==="b" ? 2 : 1;
-    var has  = k==="b" ? nb>=2 : (nb%2===1);
-    if(has){ t=t.slice(0,s-want)+t.slice(s,e)+t.slice(e+want); s-=want; e-=want; }
-    else { var m=MARKS[k]; t=t.slice(0,s)+m[0]+t.slice(s,e)+m[1]+t.slice(e); s+=want; e+=want; }
+  return chars;
+}
+// Characters and flags back to text. Underline wraps the outside; bold and italic
+// sit inside it and hug the words, since markdown will not close a marker after a
+// space. A line break ends every format, as it does when the line is drawn.
+function writeFlags(chars){
+  var out="", at=[], n=chars.length;
+  // A space between two words formatted the same way takes their formatting,
+  // so "**hello** **world**" comes out as "**hello world**". Invisible on
+  // screen; tidier in the file.
+  chars=chars.map(function(c){ return {c:c.c,b:c.b,i:c.i,u:c.u}; });
+  for(var g=0;g<n;g++){
+    if(chars[g].c!==" ") continue;
+    var h=g; while(h<n && chars[h].c===" ") h++;
+    var L=chars[g-1], R=chars[h];
+    if(L && R && L.c!=="\n" && R.c!=="\n" && L.b===R.b && L.i===R.i && (L.b||L.i)){
+      var sameU=true; for(var y=g;y<h;y++) if(chars[y].u!==L.u || L.u!==R.u) sameU=false;
+      if(sameU) for(var y2=g;y2<h;y2++){ chars[y2].b=L.b; chars[y2].i=L.i; }
+    }
+    g=h-1;
   }
-  paint(node,t); setSelOffsets(node,s,e);
-  return t;
+  // A literal * is always written escaped, and a < only where it would read as a tag.
+  function put(k){
+    var c=chars[k].c;
+    if(c==="*" || c==="\\") out+="\\";
+    else if(c==="<"){
+      var ahead=chars.slice(k+1,k+4).map(function(x){ return x.c; }).join("");
+      if(/^\/?[ubi]>/.test(ahead)) out+="\\";
+    }
+    at[k]=out.length; out+=c;
+  }
+  function run(p,q,b,it){
+    if(!b && !it){ for(var k=p;k<q;k++) put(k); return; }
+    var a=p, z=q;
+    while(a<z && /\s/.test(chars[a].c)) a++;
+    while(z>a && /\s/.test(chars[z-1].c)) z--;
+    for(var k1=p;k1<a;k1++) put(k1);
+    if(a<z){
+      // Stars are the readable form. They are ambiguous only where they would
+      // run into other stars - a neighbouring format, or a literal * - so there,
+      // and only there, the run is written with tags instead.
+      var before = out.slice(-1)==="*";
+      var after  = z<n && chars[z].c==="*" && z===q;
+      var inside = chars[a].c==="*" || chars[z-1].c==="*";
+      var nextStars = z===q && q<n && chars[q].c!=="\n" && !/\s/.test(chars[q].c) &&
+                      (chars[q].b || chars[q].i) && chars[q].u===chars[a].u;
+      if(before || after || inside || nextStars){
+        var o = (b?"<b>":"")+(it?"<i>":""), c = (it?"</i>":"")+(b?"</b>":"");
+        out+=o; for(var t2=a;t2<z;t2++) put(t2); out+=c;
+      } else {
+        var m = b&&it ? "***" : b ? "**" : "*";
+        out+=m; for(var k2=a;k2<z;k2++) put(k2); out+=m;
+      }
+    }
+    for(var k3=z;k3<q;k3++) put(k3);
+  }
+  var k=0;
+  while(k<n){
+    var u=chars[k].u && chars[k].c!=="\n", j=k;
+    while(j<n && (chars[j].u && chars[j].c!=="\n")===u) j++;
+    if(u) out+="<u>";
+    var p=k;
+    while(p<j){
+      var nl=chars[p].c==="\n";
+      var b=!nl && chars[p].b, it=!nl && chars[p].i, q=p;
+      while(q<j){
+        var nq=chars[q].c==="\n";
+        if(nq!==nl || (!nq && (chars[q].b!==b || chars[q].i!==it))) break;
+        q++;
+      }
+      run(p,q,b,it); p=q;
+    }
+    if(u) out+="</u>";
+    k=j;
+  }
+  at[n]=out.length;
+  return {text:out, at:at};
+}
+function toggleMark(node,k){
+  var t=getText(node), r=selOffsets(node);
+  var chars=flagsOf(t), n=chars.length;
+  // raw offsets -> visible character positions
+  function vis(o){ var v=0; while(v<n && chars[v].raw<o) v++; return v; }
+  var a=vis(Math.min(r.s,t.length)), z=vis(Math.min(r.e,t.length));
+  if(a===z){                                // no selection: the word under the caret
+    while(a>0 && !/\s/.test(chars[a-1].c)) a--;
+    while(z<n && !/\s/.test(chars[z].c)) z++;
+  }
+  // double-click on Windows takes the space after a word too; leave spaces out
+  while(a<z && /\s/.test(chars[a].c)) a++;
+  while(z>a && /\s/.test(chars[z-1].c)) z--;
+  if(a===z){ flash(node.closest(".row").dataset.id); return t; }   // nothing there to format
+  var all=true;
+  for(var x=a;x<z;x++) if(!/\s/.test(chars[x].c) && !chars[x][k]) { all=false; break; }
+  for(var y=a;y<z;y++) chars[y][k]=!all;
+  var w=writeFlags(chars);
+  paint(node,w.text);
+  setSelOffsets(node,w.at[a],w.at[z-1]+1);
+  return w.text;
 }
 // Restyle while typing, but only when something could have changed the
 // formatting. Replacing the line's HTML resets the browser's own undo, so plain
@@ -1811,7 +1913,7 @@ function viewGrouped(main){
   if(!keys.length){ main.appendChild(el("div","empty","Nothing here with these filters.")); return; }
   keys.forEach(function(k){
     var h=el("div","grouphead"); h.appendChild(el("span",null,k));
-    h.appendChild(el("span","n",(REALM[k]||"unfiled")+" · "+byDom[k].length));
+    h.appendChild(el("span","n","\u00b7 "+byDom[k].length));   // the realm is already on the pill above
     main.appendChild(h); appendRows(main,byDom[k]);
   });
 }
@@ -1820,9 +1922,9 @@ function viewPriority(main){
   if(!list.length){ main.appendChild(el("div","empty","Nothing here with these filters.")); return; }
   var buckets={"1":[],"2":[],"3":[],"0":[]};
   list.forEach(function(it){ buckets[String(it.imp||0)].push(it); });
-  [["1","1","important"],
-   ["2","2","secondary"],
-   ["3","3","unscheduled"],
+  [["1","1","highest"],
+   ["2","2","high"],
+   ["3","3","regular"],
    ["0","unrated","no importance set"]].forEach(function(b){
     var arr=buckets[b[0]];
     if(!arr.length) return;
@@ -1836,10 +1938,10 @@ function viewPriority(main){
 function viewMatrix(main){
   var open=tasks().filter(function(it){return it.state!=="x";});
   var quads=[
-    {cls:"do",   t:"Do now",   sub:"important · urgent",      f:function(it){return it.imp===1 && isUrgent(it);}},
-    {cls:"plan", t:"Schedule", sub:"important · not urgent",  f:function(it){return it.imp===1 && !isUrgent(it);}},
-    {cls:"quick",t:"Fit in",   sub:"secondary · urgent",      f:function(it){return it.imp!==1 && isUrgent(it);}},
-    {cls:"later",t:"Someday",  sub:"secondary · not urgent",  f:function(it){return it.imp!==1 && !isUrgent(it);}}
+    {cls:"do",   t:"Do now",   sub:"priority 1 · urgent",     f:function(it){return it.imp===1 && isUrgent(it);}},
+    {cls:"plan", t:"Schedule", sub:"priority 1 · not urgent", f:function(it){return it.imp===1 && !isUrgent(it);}},
+    {cls:"quick",t:"Fit in",   sub:"priority 2–3 · urgent",   f:function(it){return it.imp!==1 && isUrgent(it);}},
+    {cls:"later",t:"Someday",  sub:"priority 2–3 · not urgent", f:function(it){return it.imp!==1 && !isUrgent(it);}}
   ];
   var note=el("div","grouphead"); note.appendChild(el("span",null,"Importance × urgency"));
   note.appendChild(el("span","n","urgency is computed from “by when”, never typed"));
@@ -2181,6 +2283,7 @@ window.__cm = {
   setCfg: function(u,t){ cfg.url=u; cfg.token=t; saveCfg(); },
   setItems: function(a){ state.items=a; save(); render(); },
   freshen: function(){ return freshen(); },
+  flagsOf: flagsOf, writeFlags: writeFlags,
   moveTo: moveTo, moveItem: moveItem, realmOf: realmOf, render: function(){ render(); }
 };
 })();

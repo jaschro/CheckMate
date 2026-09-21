@@ -340,7 +340,7 @@ const brief = (it) => '"' + String(it.text).split("\n")[0].slice(0, 80) + '"';
 const INSTRUCTIONS =
   "CheckMate is Jason's personal todo list: a plain-text notepad where some lines are tasks. " +
   "Tasks have a state ([ ] open, [-] waiting on someone else, [x] done), an optional domain " +
-  "(a tag such as Alcedine or House), a priority 1-3 (1 = important, 3 = the default), and optional " +
+  "(a tag such as Alcedine or House), a priority 1-3 (1 highest, 2 high, 3 regular, the default), and optional " +
   "estimate, due date and a mark asking for them to be scheduled. Every domain belongs to a realm, " +
   "Work or Personal. Items are grouped under headings, normally Work and Personal. Always call " +
   "checkmate_list before changing anything, and refer to items by their id (n12). To finish a task, " +
@@ -419,10 +419,10 @@ const TOOLS = [
     inputSchema: {
       type: "object",
       properties: {
-        text: { type: "string", description: "The task, as Jason would write it. **bold**, *italic* and <u>underline</u> work." },
+        text: { type: "string", description: "The task, as Jason would write it. **bold**, *italic* and <u>underline</u> work; write a literal * as \\*." },
         kind: { type: "string", enum: ["task", "note"], description: "task (default) or a plain line of text." },
         domain: { type: "string", description: "Domain tag, e.g. Alcedine, House, Travel." },
-        priority: { type: "integer", enum: [1, 2, 3], description: "1 important, 2 secondary, 3 the default." },
+        priority: { type: "integer", enum: [1, 2, 3], description: "1 highest, 2 high, 3 regular (the default)." },
         due: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$", description: "Due date, YYYY-MM-DD." },
         estimate_minutes: { type: "integer", minimum: 1, description: "How long it should take." },
         schedule: { type: "boolean", description: "Mark it for scheduling onto the calendar." },
