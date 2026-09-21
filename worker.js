@@ -426,7 +426,7 @@ const TOOLS = [
         due: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$", description: "Due date, YYYY-MM-DD." },
         estimate_minutes: { type: "integer", minimum: 1, description: "How long it should take." },
         schedule: { type: "boolean", description: "Mark it for scheduling onto the calendar." },
-        details: { type: "string", description: "Notes that live behind the task, not on the line." },
+        details: { type: "string", description: "Notes that live behind the task, not on the line. Markdown: tables, bullet and numbered lists, # headings, **bold**, *italic*, <u>underline</u>, [links](https://…), `code` and ``` blocks all display formatted in the app." },
         link: { type: "string", description: "A URL to keep with the task." },
         section: { type: "string", description: "Heading to add it under, e.g. Work or Personal. Created if missing." },
         after_id: { type: "string", description: "Put it right after this item (and anything nested under it)." },

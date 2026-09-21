@@ -234,6 +234,29 @@ body.grabbing main{padding-bottom:170px}
 .f label{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
 .f input,.f select,.f textarea{background:var(--bg);border:1px solid var(--rule);border-radius:3px;padding:4px 6px;font-size:13px;width:100%;min-width:0}
 .f textarea{font-size:13px;line-height:1.45;resize:vertical;min-height:54px}
+.f label .hint{text-transform:none;letter-spacing:0;font-size:10px;opacity:.8}
+@media (hover:none){ .f label .hint{display:none} }
+/* the details editor: formatted text, a bit roomier than the old box */
+.rich{background:var(--bg);border:1px solid var(--rule);border-radius:3px;padding:7px 9px;
+  font-size:13.5px;line-height:1.5;min-height:9.5em;max-height:60vh;overflow:auto;resize:vertical;
+  outline:none;overflow-wrap:anywhere;color:var(--ink);white-space:pre-wrap;tab-size:4}
+.rich:focus{border-color:var(--accent)}
+.rich:empty::before{content:attr(data-ph);color:var(--ink-3);opacity:.6;pointer-events:none}
+.rich h1,.rich h2,.rich h3{font-family:var(--sans);margin:.5em 0 .2em;line-height:1.3}
+.rich h1{font-size:16px}.rich h2{font-size:15px}.rich h3{font-size:14px}
+.rich ul,.rich ol{margin:.2em 0;padding-left:1.4em}
+.rich li{margin:.05em 0}
+.rich table{border-collapse:collapse;margin:.4em 0;font-size:12.5px;max-width:100%;display:block;overflow-x:auto}
+.rich th,.rich td{border:1px solid var(--rule);padding:3px 7px;text-align:left;vertical-align:top}
+.rich th{background:var(--rule-2);font-weight:600}
+.rich pre{background:var(--rule-2);border-radius:3px;padding:6px 8px;margin:.3em 0;overflow-x:auto;
+  font-family:var(--mono);font-size:12px;white-space:pre}
+.rich code{font-family:var(--mono);font-size:.92em;background:var(--rule-2);border-radius:2px;padding:0 3px}
+.rich pre code{background:none;padding:0}
+.rich blockquote{margin:.3em 0;padding-left:.8em;border-left:2px solid var(--rule);color:var(--ink-2)}
+.rich hr{border:0;border-top:1px solid var(--rule);margin:.6em 0}
+.rich a{color:var(--accent)}
+.rich b,.rich strong{font-weight:600}
 .seg{display:flex;gap:0;border:1px solid var(--rule);border-radius:3px;overflow:hidden;width:fit-content}
 .seg button{font-family:var(--mono);font-size:11.5px;padding:4px 10px;color:var(--ink-2);border-right:1px solid var(--rule)}
 .seg button:last-child{border-right:none}
@@ -935,7 +958,7 @@ function mk(m){ return '<span class="mk">'+m+'</span>'; }
 // placeholders become visible marker spans only at the very end.
 var PH={U:"\uE001",V:"\uE002",T:"\uE003",B:"\uE004",I:"\uE005",
         BO:"\uE006",BC:"\uE007",IO:"\uE008",IC:"\uE009",E:"\uE00A",S:"\uE00B",L:"\uE00C",K:"\uE00D"};
-function renderInline(t){
+function renderInline(t,bare){
   var h=escHTML(t.replace(/[\uE001-\uE00D]/g,""));
   // \* is a literal star, \< a literal < and \\ a literal backslash: the escaping
   // backslash hides like a marker, and the character it protects is invisible to
@@ -948,6 +971,7 @@ function renderInline(t){
   h=h.replace(/\*\*\*(?=[^\s*])([^\n]*?[^\s*])\*\*\*/g,function(_,x){ return PH.T+"<b><i>"+x+"</i></b>"+PH.T; });
   h=h.replace(/\*\*(?=[^\s*])([^\n]*?[^\s*])\*\*/g,function(_,x){ return PH.B+"<b>"+x+"</b>"+PH.B; });
   h=h.replace(/(^|[^*])\*(?=[^\s*])([^*\n]*?[^\s*])\*(?!\*)/gm,function(_,p,x){ return p+PH.I+"<i>"+x+"</i>"+PH.I; });
+  if(bare) return h.replace(/[\uE001-\uE00A]/g,"").replace(/\uE00B/g,"*").replace(/\uE00C/g,"&lt;").replace(/\uE00D/g,"\\");
   return h.replace(/\uE001/g,mk("&lt;u&gt;")).replace(/\uE002/g,mk("&lt;/u&gt;"))
           .replace(/\uE006/g,mk("&lt;b&gt;")).replace(/\uE007/g,mk("&lt;/b&gt;"))
           .replace(/\uE008/g,mk("&lt;i&gt;")).replace(/\uE009/g,mk("&lt;/i&gt;"))
@@ -1003,7 +1027,7 @@ function flagsOf(t){
     var mkr=n.parentNode.closest && n.parentNode.closest(".mk");
     if(!mkr){
       var b=!!n.parentNode.closest("b"), i=!!n.parentNode.closest("i"), u=!!n.parentNode.closest("u");
-      for(var k=0;k<n.data.length;k++) chars.push({c:n.data[k], b:b, i:i, u:u, raw:raw+k});
+      for(var k=0;k<n.data.length;k++) chars.push({c:n.data[k], b:b, i:i, u:u, pos:raw+k});
     }
     raw+=n.data.length;
   }
@@ -1017,7 +1041,7 @@ function writeFlags(chars){
   // A space between two words formatted the same way takes their formatting,
   // so "**hello** **world**" comes out as "**hello world**". Invisible on
   // screen; tidier in the file.
-  chars=chars.map(function(c){ return {c:c.c,b:c.b,i:c.i,u:c.u}; });
+  chars=chars.map(function(c){ return {c:c.c,b:c.b,i:c.i,u:c.u,raw:c.raw}; });
   for(var g=0;g<n;g++){
     if(chars[g].c!==" ") continue;
     var h=g; while(h<n && chars[h].c===" ") h++;
@@ -1031,6 +1055,7 @@ function writeFlags(chars){
   // A literal * is always written escaped, and a < only where it would read as a tag.
   function put(k){
     var c=chars[k].c;
+    if(chars[k].raw){ at[k]=out.length; out+=c; return; }
     if(c==="*" || c==="\\") out+="\\";
     else if(c==="<"){
       var ahead=chars.slice(k+1,k+4).map(function(x){ return x.c; }).join("");
@@ -1089,7 +1114,7 @@ function toggleMark(node,k){
   var t=getText(node), r=selOffsets(node);
   var chars=flagsOf(t), n=chars.length;
   // raw offsets -> visible character positions
-  function vis(o){ var v=0; while(v<n && chars[v].raw<o) v++; return v; }
+  function vis(o){ var v=0; while(v<n && chars[v].pos<o) v++; return v; }
   var a=vis(Math.min(r.s,t.length)), z=vis(Math.min(r.e,t.length));
   if(a===z){                                // no selection: the word under the caret
     while(a>0 && !/\s/.test(chars[a-1].c)) a--;
@@ -1662,6 +1687,330 @@ function onKey(ev,it,node){
   } else if(ev.key==="Escape"){ node.blur(); }
 }
 
+
+/* ---------- rich details ----------
+   Details are stored as markdown - the same file, readable by the app, the
+   connector and Claude - and edited as formatted text. Two converters, used for
+   both editing and pasting:
+     mdToRich(md)    markdown -> the HTML the editor shows
+     richToMd(root)  the editor's (or a pasted page's) HTML -> markdown
+   Nothing pasted goes into the page as-is: it is read into markdown, then drawn
+   again from that. Scripts, styles and stray attributes cannot survive the trip. */
+
+function escAttr(s){ return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function safeUrl(u){
+  u=String(u||"").trim();
+  return /^(https?:|mailto:|tel:)/i.test(u) ? u : null;
+}
+function richInline(t){
+  var slots=[];
+  function keep(h){ slots.push(h); return "\uE0F0"+(slots.length-1)+"\uE0F1"; }
+  t=t.replace(/`([^`\n]+)`/g,function(_,x){ return keep("<code>"+escHTML(x)+"</code>"); });
+  t=t.replace(/\[([^\]\n]*)\]\(([^)\s]+)\)/g,function(all,x,u){
+    var h=safeUrl(u); if(!h) return all;
+    return keep('<a href="'+escAttr(h)+'" target="_blank" rel="noopener">'+escHTML(x||h)+'</a>'); });
+  t=t.replace(/\bhttps?:\/\/[^\s<>"'`\])]+[^\s<>"'`\]).,;:!?]/g,function(u){
+    return keep('<a href="'+escAttr(u)+'" target="_blank" rel="noopener">'+escHTML(u)+'</a>'); });
+  return renderInline(t,true).replace(/\uE0F0(\d+)\uE0F1/g,function(_,n){ return slots[+n]; });
+}
+function splitRow(l){
+  var s=l.trim().replace(/^\|/,"").replace(/\|$/,""), cells=[], cur="";
+  for(var k=0;k<s.length;k++){
+    if(s[k]==="\\" && s[k+1]==="|"){ cur+="\\|"; k++; continue; }
+    if(s[k]==="|"){ cells.push(cur.trim()); cur=""; continue; }
+    cur+=s[k];
+  }
+  cells.push(cur.trim());
+  return cells;
+}
+var TABLE_ROW=/^\s*\|.*\|\s*$/, TABLE_SEP=/^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/;
+function listItem(l){
+  var m=/^(\s*)([-*+]|\d+[.)])\s+(.*)$/.exec(l);
+  if(!m) return null;
+  return {ind:m[1].length, ordered:/\d/.test(m[2]), n:parseInt(m[2],10)||1, text:m[3]};
+}
+function mdToRich(md){
+  var L=tsvToMd(String(md||"")).split("\n"), h="", i=0;
+  function list(indent){
+    var first=listItem(L[i]), tag=first.ordered?"ol":"ul";
+    var out="<"+tag+(first.ordered && first.n!==1 ? ' start="'+first.n+'"' : "")+">";
+    while(i<L.length){
+      var it=listItem(L[i]);
+      if(!it || it.ind<indent) break;
+      if(it.ind>indent){ var sub=list(it.ind); out=out.replace(/<\/li>$/,sub+"</li>"); continue; }
+      if(it.ordered!==first.ordered) break;
+      out+="<li>"+richInline(it.text)+"</li>"; i++;
+    }
+    return out+"</"+tag+">";
+  }
+  while(i<L.length){
+    var l=L[i], m;
+    if((m=/^```(.*)$/.exec(l))){
+      var code=[]; i++;
+      while(i<L.length && !/^```\s*$/.test(L[i])) code.push(L[i++]);
+      i++;
+      h+="<pre"+(m[1].trim()?' data-lang="'+escAttr(m[1].trim())+'"':"")+"><code>"+escHTML(code.join("\n"))+"</code></pre>";
+      continue;
+    }
+    if(TABLE_ROW.test(l) && i+1<L.length && TABLE_SEP.test(L[i+1])){
+      var head=splitRow(l), rows=[]; i+=2;
+      while(i<L.length && TABLE_ROW.test(L[i])) rows.push(splitRow(L[i++]));
+      var n=Math.max.apply(null,[head.length].concat(rows.map(function(r){ return r.length; })));
+      var cell=function(tag,c){ return "<"+tag+">"+richInline((c||"").replace(/\\\|/g,"|"))+"</"+tag+">"; };
+      h+="<table><thead><tr>";
+      for(var a=0;a<n;a++) h+=cell("th",head[a]);
+      h+="</tr></thead><tbody>";
+      rows.forEach(function(r){ h+="<tr>"; for(var b=0;b<n;b++) h+=cell("td",r[b]); h+="</tr>"; });
+      h+="</tbody></table>";
+      continue;
+    }
+    if((m=/^(#{1,3})\s+(.*)$/.exec(l))){ h+="<h"+m[1].length+">"+richInline(m[2])+"</h"+m[1].length+">"; i++; continue; }
+    if(/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(l)){ h+="<hr>"; i++; continue; }
+    if(listItem(l)){ h+=list(listItem(l).ind); continue; }
+    if(/^>\s?/.test(l)){
+      var q=[]; while(i<L.length && /^>\s?/.test(L[i])) q.push(L[i++].replace(/^>\s?/,""));
+      h+="<blockquote>"+mdToRich(q.join("\n"))+"</blockquote>";
+      continue;
+    }
+    h+= l==="" ? "<div><br></div>" : "<div>"+richInline(l)+"</div>";
+    i++;
+  }
+  return h;
+}
+
+var SKIP=/^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT|HEAD|META|LINK|TITLE|IMG|PICTURE|SVG|CANVAS|VIDEO|AUDIO|IFRAME|OBJECT|EMBED|INPUT|BUTTON|SELECT|TEXTAREA|OPTION)$/;
+var BLOCKS=/^(P|DIV|H[1-6]|UL|OL|LI|TABLE|THEAD|TBODY|TFOOT|TR|TD|TH|PRE|BLOCKQUOTE|HR|SECTION|ARTICLE|HEADER|FOOTER|MAIN|ASIDE|NAV|FIGURE|FIGCAPTION|DL|DT|DD|ADDRESS|DETAILS|SUMMARY)$/;
+function isBlockEl(n){ return n.nodeType===1 && BLOCKS.test(n.tagName); }
+function styleFlags(n,f){
+  var t=n.tagName, st=(n.getAttribute && n.getAttribute("style"))||"";
+  var g={b:f.b,i:f.i,u:f.u};
+  var fw=/font-weight\s*:\s*([a-z0-9]+)/i.exec(st);
+  if(t==="B"||t==="STRONG") g.b = !(fw && /^(normal|[1-5]00)$/i.test(fw[1]));   // Google Docs wraps everything in a <b> that is not bold
+  else if(fw) g.b = /^(bold|bolder|[6-9]00)$/i.test(fw[1]) ? true : (/^(normal|[1-5]00)$/i.test(fw[1]) ? false : g.b);
+  if(t==="I"||t==="EM"||t==="CITE"||t==="VAR") g.i=true;
+  var fs=/font-style\s*:\s*([a-z]+)/i.exec(st);
+  if(fs) g.i = /italic|oblique/i.test(fs[1]);
+  if(t==="U"||t==="INS") g.u=true;
+  if(/text-decoration[^;]*underline/i.test(st)) g.u=true;
+  return g;
+}
+// Inline content -> one markdown string, "\n" where there were <br>s.
+function inlineMd(nodes,ctx){
+  var chars=[];
+  function push(s,f,raw){ for(var k=0;k<s.length;k++) chars.push({c:s[k],b:f.b,i:f.i,u:f.u,raw:!!raw}); }
+  function walk(n,f){
+    if(n.nodeType===3){
+      var s=n.data.replace(/\u00A0/g," ");
+      if(!ctx.keep) s=s.replace(/[\t\r\n ]+/g," ");            // pasted pages: whitespace as a browser shows it
+      else s=s.replace(/\r?\n/g,ctx.cell?" ":"\n");
+      if(ctx.cell) s=s.replace(/\|/g,"\uE0F2");            // escaped below, as raw \|
+      push(s,f); return;
+    }
+    if(n.nodeType!==1 || SKIP.test(n.tagName)) return;
+    var t=n.tagName;
+    if(t==="BR"){ push(ctx.cell?" ":"\n",{b:false,i:false,u:false}); return; }
+    if(t==="A"){
+      var href=safeUrl(n.getAttribute("href")), txt=n.textContent.replace(/\s+/g," ").trim();
+      if(href && txt && txt!==href) push("["+txt.replace(/[\[\]]/g,"")+"]("+href+")",{b:false,i:false,u:false},true);
+      else if(href) push(href,{b:false,i:false,u:false},true);
+      else push(txt,f);
+      return;
+    }
+    if(t==="CODE" && !ctx.pre){
+      var c=n.textContent.replace(/\s+/g," ");
+      if(c && c.indexOf("`")<0) push("`"+c+"`",{b:false,i:false,u:false},true); else push(c,f);
+      return;
+    }
+    var g=styleFlags(n,f);
+    for(var k=0;k<n.childNodes.length;k++) walk(n.childNodes[k],g);
+    if(isBlockEl(n) && t!=="SPAN") push(" ",{b:false,i:false,u:false});   // a stray block inside a line
+  }
+  nodes.forEach(function(n){ walk(n,{b:false,i:false,u:false}); });
+  // whitespace as a browser shows it: runs collapse, nothing at the edges of a line.
+  // Your own typing in the editor is kept exactly as typed.
+  var out=[];
+  if(ctx.keep) out=chars;
+  else chars.forEach(function(ch){
+    if(ch.c===" " && !ch.raw){
+      var prev=out[out.length-1];
+      if(!prev || prev.c===" " || prev.c==="\n") return;
+    }
+    if(ch.c==="\n"){ while(out.length && out[out.length-1].c===" " && !out[out.length-1].raw) out.pop(); }
+    out.push(ch);
+  });
+  if(!ctx.keep) while(out.length && out[out.length-1].c===" " && !out[out.length-1].raw) out.pop();
+  if(ctx.cell) out=out.reduce(function(a,ch){
+    if(ch.c==="\uE0F2"){ a.push({c:"\\",raw:true}); a.push({c:"|",raw:true}); } else a.push(ch);
+    return a; },[]);
+  return writeFlags(out).text;
+}
+function richToMd(root,keep){
+  var K=keep?{keep:true}:{}, KC=keep?{keep:true,cell:true}:{cell:true};
+  var lines=[];
+  function soft(){ if(lines.length && lines[lines.length-1]!=="") lines.push(""); }
+  function emitText(t,prefix){ t.split("\n").forEach(function(l){ lines.push(prefix+l); }); }
+  function children(parent,prefix){
+    var run=[];
+    function flush(){
+      if(!run.length) return;
+      var t=inlineMd(run,K);
+      run=[];
+      t=t.replace(/\n$/,"");                 // a closing <br> only gives an empty line its height
+      if(t==="" ) return;
+      emitText(t,prefix);
+    }
+    for(var k=0;k<parent.childNodes.length;k++){
+      var c=parent.childNodes[k];
+      if(c.nodeType===1 && SKIP.test(c.tagName)) continue;
+      if(c.nodeType===3 || !isBlockEl(c)) run.push(c);
+      else { flush(); block(c,prefix); }
+    }
+    flush();
+  }
+  function hasBlockKids(n){ for(var k=0;k<n.childNodes.length;k++) if(isBlockEl(n.childNodes[k])) return true; return false; }
+  function listMd(el,prefix,indent){
+    var ordered=el.tagName==="OL", n=ordered ? (parseInt(el.getAttribute("start"),10)||1) : 0;
+    for(var k=0;k<el.children.length;k++){
+      var li=el.children[k];
+      if(li.tagName!=="LI") continue;
+      var inl=[], subs=[];
+      for(var j=0;j<li.childNodes.length;j++){
+        var c=li.childNodes[j];
+        if(c.nodeType===1 && (c.tagName==="UL"||c.tagName==="OL")) subs.push(c); else inl.push(c);
+      }
+      var marker = ordered ? (n++)+". " : "- ";
+      var text=inlineMd(inl,K).replace(/\n+/g," ").trim();
+      lines.push(prefix+indent+marker+text);
+      subs.forEach(function(s){ listMd(s,prefix,indent+(ordered?"   ":"  ")); });
+    }
+  }
+  function block(n,prefix){
+    var t=n.tagName;
+    if(/^H[1-6]$/.test(t)){
+      var lv=Math.min(3,+t[1]), txt=inlineMd([].slice.call(n.childNodes),K).replace(/\n+/g," ").trim();
+      if(txt) lines.push(prefix+new Array(lv+1).join("#")+" "+txt.replace(/^\*\*(.*)\*\*$/,"$1"));
+      return;
+    }
+    if(t==="UL"||t==="OL"){ listMd(n,prefix,""); return; }
+    if(t==="TABLE"){
+      var rows=[].slice.call(n.rows||[]);
+      if(!rows.length) return;
+      var grid=rows.map(function(r){ return [].slice.call(r.cells).map(function(c){
+        return inlineMd([].slice.call(c.childNodes),KC).replace(/\n+/g," ").trim(); }); });
+      var w=Math.max.apply(null,grid.map(function(r){ return r.length; }));
+      grid.forEach(function(r,ri){
+        while(r.length<w) r.push("");
+        lines.push(prefix+"|"+r.map(function(c){ return c ? " "+c+" " : " "; }).join("|")+"|");
+        if(ri===0) lines.push(prefix+"|"+new Array(w+1).join(" --- |"));
+      });
+      return;
+    }
+    if(t==="PRE"){
+      var lang=n.getAttribute("data-lang")||"";
+      lines.push(prefix+"```"+lang);
+      n.textContent.replace(/\n$/,"").split("\n").forEach(function(l){ lines.push(prefix+l); });
+      lines.push(prefix+"```");
+      return;
+    }
+    if(t==="BLOCKQUOTE"){ children(n,prefix+"> "); return; }
+    if(t==="HR"){ lines.push(prefix+"---"); return; }
+    if(t==="P"){ soft(); children(n,prefix); soft(); return; }
+    if(t==="DIV" && !hasBlockKids(n)){
+      var before=lines.length;
+      children(n,prefix);
+      if(lines.length===before) lines.push(prefix);      // an empty line, kept on purpose
+      return;
+    }
+    children(n,prefix);
+  }
+  children(root,"");
+  while(lines.length && lines[0].trim()==="") lines.shift();
+  while(lines.length && lines[lines.length-1].trim()==="") lines.pop();
+  var md=lines.join("\n").replace(/[ \t]+$/gm,"");
+  return keep ? md : md.replace(/\n{3,}/g,"\n\n");     // pasted pages: no runs of blank lines
+}
+function htmlToMd(html){
+  var doc=new DOMParser().parseFromString(String(html),"text/html");   // an inert document: nothing in it runs
+  return richToMd(doc.body);
+}
+// Plain text that is really a table (from a spreadsheet, or a tab-separated
+// paste) becomes one; everything else is left as the markdown it already is.
+function tsvToMd(text){
+  var L=text.split("\n"), out=[], k=0;
+  while(k<L.length){
+    if(L[k].indexOf("\t")>=0){
+      var j=k, cols=L[k].split("\t").length;
+      while(j<L.length && L[j].indexOf("\t")>=0 && L[j].split("\t").length===cols) j++;
+      if(j-k>=2 && cols>=2){
+        for(var r=k;r<j;r++){
+          out.push("| "+L[r].split("\t").map(function(c){ return c.trim().replace(/\|/g,"\\|"); }).join(" | ")+" |");
+          if(r===k) out.push("|"+new Array(cols+1).join(" --- |"));
+        }
+        k=j; continue;
+      }
+    }
+    out.push(L[k]); k++;
+  }
+  return out.join("\n");
+}
+
+function richBox(it){
+  var box=el("div","rich");
+  box.contentEditable="true";
+  box.spellcheck=true;
+  box.dataset.f="details";
+  box.setAttribute("role","textbox"); box.setAttribute("aria-multiline","true");
+  box.setAttribute("data-ph","phone numbers, context, a table pasted from anywhere…");
+  box.innerHTML=it.details ? mdToRich(it.details) : "";
+  var how=null;                                      // how the next paste was asked for
+  // Opening an item must never rewrite its notes: only an edit marks the box
+  // as changed, and only a changed box is written back.
+  box.addEventListener("input",function(){ box.dataset.dirty="1"; });
+  // Arriving by keyboard puts you at the end, ready to add; a click or tap goes
+  // exactly where you pointed.
+  var pointed=false;
+  box.addEventListener("pointerdown",function(){ pointed=true; });
+  box.addEventListener("focus",function(){
+    if(pointed){ pointed=false; return; }
+    var r=document.createRange(); r.selectNodeContents(box); r.collapse(false);
+    var g=window.getSelection(); g.removeAllRanges(); g.addRange(r);
+  });
+  box.addEventListener("keydown",function(ev){
+    var mod=ev.ctrlKey||ev.metaKey;
+    if(mod && (ev.code==="KeyV" || String(ev.key).toLowerCase()==="v")) how = ev.shiftKey ? "plain" : "rich";
+    if(mod && !ev.shiftKey && !ev.altKey){
+      var k=String(ev.key).toLowerCase(), cmd={b:"bold",i:"italic",u:"underline"}[k];
+      if(cmd){ ev.preventDefault(); document.execCommand(cmd); }
+    }
+    ev.stopPropagation();                            // Esc and friends are handled by the drawer
+    if(ev.key==="Escape"){ closeDrawer(it,true); }
+  });
+  box.addEventListener("paste",function(ev){
+    var cd=ev.clipboardData; if(!cd) return;
+    ev.preventDefault();
+    var mode=how; how=null;
+    var html=cd.getData("text/html"), text=cd.getData("text/plain");
+    var md;
+    if(mode==="plain"){
+      // exactly the characters: escape them so nothing is read as formatting
+      document.execCommand("insertHTML",false,escHTML(text).replace(/\r?\n/g,"<br>"));
+      return;
+    }
+    if(html && /<[a-z]/i.test(html)) md=htmlToMd(html);
+    else if(mode==="rich" || text.indexOf("\t")>=0 || /(^|\n)\s*(\||[-*+] |\d+\. |#{1,3} |> |```)/.test(text) || /\*\*|<u>/.test(text)) md=tsvToMd(text);
+    else { document.execCommand("insertHTML",false,escHTML(text).replace(/\r?\n/g,"<br>")); return; }
+    var frag=mdToRich(md);
+    // a one-line paste goes in as a phrase, not a new line of its own
+    if(/^<div>(?:(?!<div>)[\s\S])*<\/div>$/.test(frag)) frag=frag.replace(/^<div>|<\/div>$/g,"");
+    document.execCommand("insertHTML",false,frag);
+  });
+  box.addEventListener("click",function(ev){
+    var a=ev.target.closest && ev.target.closest("a");
+    if(a && (ev.ctrlKey||ev.metaKey)){ ev.preventDefault(); window.open(a.href,"_blank","noopener"); }
+  });
+  return box;
+}
+
 /* ---------- drawer ---------- */
 // Pull every field's current value off the DOM. Save, the X and Esc all call this,
 // so there is no way out of the drawer that silently drops what you typed.
@@ -1673,7 +2022,10 @@ function cleanDomain(v){
 function readDrawer(it){
   var d=document.querySelector(".drawer");
   if(!d) return false;
-  function f(name){ var e=d.querySelector('[data-f="'+name+'"]'); return e ? e.value : null; }
+  function f(name){ var e=d.querySelector('[data-f="'+name+'"]');
+    if(!e) return null;
+    if(e.isContentEditable) return e.dataset.dirty ? richToMd(e,true) : undefined;
+    return e.value; }
   var dom=cleanDomain(f("domain"));
   it.domain = dom || null;
   if(dom && !REALM[dom]) REALM[dom]="Personal";
@@ -1681,7 +2033,8 @@ function readDrawer(it){
   it.due = f("due") || null;
   var url=(f("link")||"").trim();
   it.link = url ? {url:url, title:(it.link&&it.link.title)||""} : null;
-  it.details = f("details") || "";
+  var det=f("details");
+  if(det!==undefined) it.details = det || "";
   save();
   return true;
 }
@@ -1805,11 +2158,11 @@ function buildDrawer(it){
   e5.dataset.f="link";
   f5.appendChild(e5); g.appendChild(f5);
 
-  var f6=el("div","f full"); f6.appendChild(el("label",null,"Details"));
-  var e6=el("textarea"); e6.value=it.details||"";
-  e6.placeholder="phone numbers, context, whatever doesn't belong on the line…";
-  e6.dataset.f="details";
-  f6.appendChild(e6); g.appendChild(f6);
+  var f6=el("div","f full");
+  var lab=el("label",null,"Details");
+  lab.appendChild(el("span","hint"," \u00b7 Ctrl+V keeps formatting, Ctrl+Shift+V pastes plain"));
+  f6.appendChild(lab);
+  f6.appendChild(richBox(it)); g.appendChild(f6);
 
   d.appendChild(g);
 
@@ -2296,6 +2649,7 @@ window.__cm = {
   setItems: function(a){ state.items=a; save(); render(); },
   freshen: function(){ return freshen(); },
   flagsOf: flagsOf, writeFlags: writeFlags,
+  mdToRich: mdToRich, richToMd: richToMd, htmlToMd: htmlToMd, tsvToMd: tsvToMd,
   moveTo: moveTo, moveItem: moveItem, realmOf: realmOf, render: function(){ render(); }
 };
 })();
