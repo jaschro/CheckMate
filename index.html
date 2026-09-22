@@ -138,6 +138,25 @@ main{max-width:820px;margin:0 auto;padding:0 16px;padding-block:14px 80px}
 .m-hole{visibility:hidden;pointer-events:none;min-width:20px;padding-inline:4px}
 .m-est{color:var(--ink-2);border-color:var(--rule)}
 .m-realm{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+/* the tag picker */
+.tagback{position:fixed;inset:0;z-index:80}
+.tagpop{position:fixed;background:var(--surface);border:1px solid var(--rule);border-radius:6px;
+  box-shadow:0 6px 24px rgba(0,0,0,.18);padding:7px;min-width:190px;max-width:min(280px,92vw);
+  max-height:min(60vh,380px);overflow:auto;display:flex;flex-direction:column;gap:5px}
+.tagq{background:var(--bg);border:1px solid var(--rule);border-radius:3px;padding:4px 7px;font-size:13px;width:100%}
+@media (hover:none){ .tagq{font-size:16px} }
+.tagbody{display:flex;flex-direction:column;gap:1px}
+.taghead{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-3);margin:5px 0 1px}
+.tagopt{display:block;width:100%;text-align:left;font-family:var(--mono);font-size:12px;
+  padding:5px 7px;border-radius:3px;color:var(--ink-2)}
+.tagopt:hover,.tagopt:focus{background:var(--accent-soft);color:var(--accent);outline:none}
+.tagopt.on{background:var(--accent);color:var(--on-accent)}
+.tagopt.none{color:var(--ink-3);margin-top:4px;border-top:1px solid var(--rule-2);border-radius:0}
+.tagadd{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:5px;padding-top:5px;
+  border-top:1px solid var(--rule-2);font-size:11.5px;color:var(--ink-3)}
+.tagadd .tagopt{width:auto;border:1px solid var(--rule);padding:3px 8px}
+.tagnone{font-family:var(--mono);font-size:11px;color:var(--ink-3);padding:6px 2px}
 .m-due{color:var(--ink-2);border-color:var(--rule)}
 .m-due.urgent{color:var(--brick);border-color:var(--brick);font-weight:600}
 .m-slot{color:var(--ochre);background:var(--ochre-soft)}
@@ -393,6 +412,7 @@ pre.raw{margin:10px 0 0;padding:12px;background:var(--surface);border:1px solid 
       <dd>turn a line of text into a task</dd>
       <dt><b>&#8942;</b></dt><dd>open properties &mdash; domain, priority, estimate, due date, link, notes</dd>
       <dt><b>&#8801;</b></dt><dd>this line has notes behind it</dd>
+      <dt>the tag itself</dt><dd>click it to swap it for another, or clear it</dd>
       <dt><b>schedule?</b></dt><dd>marked for scheduling &mdash; ask Claude to schedule your marked items and it books the free gaps</dd>
       <dt><b>&rarr; Thu3:15p</b></dt><dd>the gap it booked</dd>
     </dl>
@@ -402,6 +422,10 @@ pre.raw{margin:10px 0 0;padding:12px;background:var(--surface);border:1px solid 
       <dt><b>Enter</b></dt><dd>on a task, start the next one; on plain text, a new line</dd>
       <dt><b>Ctrl+Enter</b></dt><dd>end a block of text</dd>
       <dt><b>Ctrl+B</b> <b>I</b> <b>U</b></dt><dd>bold, italic, underline &mdash; the selection, or the word under the caret</dd>
+      <dt><b>d:</b> <b>p:</b> <b>t:</b> <b>l:</b> <b>by:</b></dt>
+      <dd>type properties into the line and they lift off it when you leave:
+        <b>d:money</b> tag, <b>p:1</b> priority, <b>t:15</b> or <b>t:1.5h</b> estimate,
+        <b>l:hellobank.com</b> link, <b>by:9/23/26</b> or <b>by:tomorrow</b> due date</dd>
       <dt><b>&uarr;</b> <b>&darr;</b></dt><dd>move the caret between lines</dd>
       <dt><b>Esc</b></dt><dd>close the properties panel, saving what you typed</dd>
     </dl>
@@ -438,7 +462,13 @@ pre.raw{margin:10px 0 0;padding:12px;background:var(--surface);border:1px solid 
 <script>
 (function(){
 "use strict";
-var TODAY = new Date(2026,8,19); // Sat Sep 19 2026
+// Today, every time the app loads. This drives "today", "tomorrow", "in 3d" and
+// what counts as urgent, so it must not be a date written into the source.
+var TODAY = (function(){ var n=new Date(); return new Date(n.getFullYear(),n.getMonth(),n.getDate()); })();
+function isoDay(d){
+  return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2);
+}
+function inDays(n){ var d=new Date(TODAY); d.setDate(d.getDate()+n); return isoDay(d); }
 
 var REALM = { // domain -> realm. the small two-column table. editable at runtime.
   Alcedine:"Work", ContractSafe:"Work", Legal:"Work", Finance:"Work", Hiring:"Work",
@@ -497,7 +527,7 @@ var SEED = [
   T({kind:"note",text:"look into that standing desk converter, the one with the crank"}),
 
   T({kind:"head",text:"Work"}),
-  T({text:"Renew alcedine.com before it lapses",domain:"Alcedine",imp:1,est:15,due:"2026-09-22"}),
+  T({text:"Renew alcedine.com before it lapses",domain:"Alcedine",imp:1,est:15,due:inDays(3)}),
   T({state:"-",text:"Confirm the indemnification language with the lawyers",domain:"Legal",imp:1,est:30,
      details:"Joe at the firm — 800-555-1212 or joelawyer@somelawfirm.com. He's only reachable 9am–noon Paris time, so call before 6am my time or it waits a day.\n\nSent the redline Wed. No reply yet."}),
   T({text:"Draft the Q4 renewal list for the top 20 accounts and flag the ones that need a call from me rather than an email",domain:"ContractSafe",imp:2,est:120}),
@@ -505,17 +535,17 @@ var SEED = [
   T({state:"-",text:"Waiting on the August Mercury statement to reconcile",domain:"Finance",imp:2}),
   T({text:"Reply to the Invoiced support thread about proration",domain:"ContractSafe",imp:3,est:10}),
   T({text:"Post the ops contractor listing",domain:"Hiring",imp:2,est:25}),
-  T({text:"Pull the Q3 numbers together for the board note",domain:"Finance",imp:1,est:90,due:"2026-09-21"}),
+  T({text:"Pull the Q3 numbers together for the board note",domain:"Finance",imp:1,est:90,due:inDays(2)}),
 
   T({kind:"head",text:"Personal"}),
   T({text:"Replace the garbage disposal",domain:"House",imp:3,est:90}),
-  T({text:"Vet — Augie's annual shots",domain:"Errands",imp:2,est:60,due:"2026-09-24"}),
+  T({text:"Vet — Augie's annual shots",domain:"Errands",imp:2,est:60,due:inDays(5)}),
   T({state:"-",text:"Waiting on the quote from the tile guy",domain:"House",imp:2}),
-  T({text:"Renew passport before December",domain:"Travel",imp:1,est:45,due:"2026-10-15"}),
+  T({text:"Renew passport before December",domain:"Travel",imp:1,est:45,due:inDays(26)}),
   T({state:"x",text:"Order the replacement water filter",domain:"House"}),
   T({text:"Hebrew — 20 minutes of review",domain:"Study",imp:3,est:20}),
   T({text:"Schedule the annual physical",domain:"Health",imp:2,est:10}),
-  T({text:"Pick a gift for Ellen's birthday",domain:"Errands",imp:2,est:30,due:"2026-09-26"}),
+  T({text:"Pick a gift for Ellen's birthday",domain:"Errands",imp:2,est:30,due:inDays(7)}),
   T({kind:"note",text:"ideas: the good olive oil? a cookbook? that ceramic thing she pointed at"}),
   T({text:"Read: Karpathy on evals",domain:"Reading",imp:3,est:20,
      link:{url:"https://example.com/on-evals",title:"Karpathy — On evals"}}),
@@ -1601,7 +1631,173 @@ function buildRow(it){
   return row;
 }
 function chip(cls,label,it){ var b=el("button",cls,label);
-  b.addEventListener("click",function(){ state.open = state.open===it.id?null:it.id; render(); }); return b; }
+  b.addEventListener("click",function(ev){
+    if(state.selecting) return;                    // in Select mode a click picks the row
+    if(/m-dom/.test(cls)){ ev.stopPropagation(); tagPop(it,b); return; }
+    state.open = state.open===it.id?null:it.id; render();
+  });
+  return b; }
+
+/* ---------- the tag picker ----------
+   Tap a tag to swap it, without opening the whole properties panel. */
+var popEl=null;
+function closePop(){ if(popEl){ popEl.remove(); popEl=null; } }
+document.addEventListener("keydown",function(ev){ if(ev.key==="Escape" && popEl){ ev.stopPropagation(); closePop(); } },true);
+window.addEventListener("resize",closePop);
+
+function tagPop(it,anchor){
+  closePop();
+  var wrap=el("div","tagback");
+  var pop=el("div","tagpop");
+  pop.setAttribute("role","dialog"); pop.setAttribute("aria-label","Tag");
+  wrap.appendChild(pop);
+  function outside(ev){ if(ev.target===wrap) closePop(); }
+  wrap.addEventListener("mousedown",outside);
+  wrap.addEventListener("touchstart",outside);
+
+  var q=el("input"); q.placeholder="find or add a tag"; q.autocomplete="off"; q.className="tagq";
+  pop.appendChild(q);
+  var body=el("div","tagbody"); pop.appendChild(body);
+
+  function pick(name,realm){
+    snapshot("changing a tag");
+    if(name && !REALM[name]) REALM[name]=realm||sectionRealm(state.items.indexOf(it))||"Personal";
+    it.domain=name||null;
+    adoptSection([it.id]);            // position still decides the realm, as dragging does
+    closePop(); save(); render();
+  }
+  function draw(){
+    body.innerHTML="";
+    var f=q.value.trim().toLowerCase();
+    var all=usedDomains();
+    var list=all.filter(function(d){ return !f || d.toLowerCase().indexOf(f)>=0; });
+    ["Work","Personal"].forEach(function(r){
+      var inR=list.filter(function(d){ return (REALM[d]||"Personal")===r; });
+      if(!inR.length) return;
+      body.appendChild(el("div","taghead",r));
+      inR.forEach(function(d){
+        var b=el("button","tagopt"+(d===it.domain?" on":""),d);
+        b.addEventListener("click",function(){ pick(d); });
+        body.appendChild(b);
+      });
+    });
+    var name=cleanDomain(q.value);
+    if(name && !all.some(function(d){ return d.toLowerCase()===name.toLowerCase(); })){
+      var add=el("div","tagadd");
+      add.appendChild(el("span",null,"add \u201c"+name+"\u201d to"));
+      ["Work","Personal"].forEach(function(r){
+        var b=el("button","tagopt new",r);
+        b.addEventListener("click",function(){ pick(name,r); });
+        add.appendChild(b);
+      });
+      body.appendChild(add);
+    }
+    if(it.domain){
+      var none=el("button","tagopt none","\u2014 no tag");
+      none.addEventListener("click",function(){ pick(null); });
+      body.appendChild(none);
+    }
+    if(!body.childNodes.length) body.appendChild(el("div","tagnone","No tags in use yet."));
+  }
+  q.addEventListener("input",draw);
+  q.addEventListener("keydown",function(ev){
+    ev.stopPropagation();
+    if(ev.key==="Enter"){ ev.preventDefault(); var b=body.querySelector(".tagopt"); if(b) b.click(); }
+    if(ev.key==="ArrowDown"){ ev.preventDefault(); var f1=body.querySelector(".tagopt"); if(f1) f1.focus(); }
+  });
+  body.addEventListener("keydown",function(ev){
+    var opts=[].slice.call(body.querySelectorAll(".tagopt"));
+    var i=opts.indexOf(document.activeElement);
+    if(ev.key==="ArrowDown"){ ev.preventDefault(); (opts[i+1]||opts[0]).focus(); }
+    if(ev.key==="ArrowUp"){ ev.preventDefault(); if(i<=0) q.focus(); else opts[i-1].focus(); }
+  });
+  draw();
+  document.body.appendChild(wrap);
+
+  // under the tag if it fits, above it if not, and never off the side
+  var r=anchor.getBoundingClientRect(), w=pop.offsetWidth, h=pop.offsetHeight;
+  pop.style.left=Math.round(Math.min(Math.max(8,r.left), window.innerWidth-w-8))+"px";
+  pop.style.top =Math.round((r.bottom+h+8<=window.innerHeight) ? r.bottom+4 : Math.max(8,r.top-h-4))+"px";
+  popEl=wrap;
+  if(!touchUI()) q.focus();
+}
+
+/* ---------- shorthand ----------
+   Type the properties into the line and they are lifted off it when you leave:
+     d:money  p:1  t:15  t:1.5h  l:hellobank.com  l:[bank](https://…)  by:9/23/26
+   Anything that is not a valid value is left alone as ordinary words. */
+function parseWhen(v){
+  var t=String(v||"").trim().toLowerCase(), m;
+  var day=function(n){ var d=new Date(TODAY); d.setDate(d.getDate()+n); return isoDay(d); };
+  if(t==="today") return day(0);
+  if(t==="tomorrow"||t==="tmw"||t==="tmrw") return day(1);
+  var wd=["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
+  for(var k=0;k<7;k++) if(t.length>=3 && wd[k].indexOf(t)===0) return day(((k-TODAY.getDay())+7)%7 || 7);
+  if((m=/^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(t))) return isoDay(new Date(+m[1],+m[2]-1,+m[3]));
+  if((m=/^(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2}|\d{4}))?$/.exec(t))){
+    var y = m[3] ? (m[3].length===2 ? 2000+ +m[3] : +m[3]) : TODAY.getFullYear();
+    var d=new Date(y,+m[1]-1,+m[2]);
+    if(d.getMonth()!==+m[1]-1) return null;                       // 13/40 and the like
+    if(!m[3] && d<TODAY){ d=new Date(y+1,+m[1]-1,+m[2]); }        // a day already past means next year
+    return isoDay(d);
+  }
+  return null;
+}
+function shorthand(it,t){
+  var got=[];
+  // A token has to start a word: "p:1" counts, the "p:1" inside a URL does not.
+  function cut(re,take){
+    var mm; re.lastIndex=0;
+    while((mm=re.exec(t))){
+      var start=mm.index+mm[1].length, end=mm.index+mm[0].length;
+      var r=take(mm);
+      if(r===false){ re.lastIndex=end; continue; }
+      if(typeof r==="number") end=start+r;         // only part of the token was a value
+      t=t.slice(0,start)+t.slice(end);
+      re.lastIndex=0;
+    }
+  }
+  function known(name){
+    var all=usedDomains().concat(Object.keys(REALM));
+    for(var k=0;k<all.length;k++) if(all[k].toLowerCase()===String(name).toLowerCase()) return all[k];
+    return null;
+  }
+  // d:money   d:"Personal Finance"   d:personal finance  (two bare words only when
+  // that tag already exists, so "d:money p:1" cannot swallow the p)
+  cut(/(^|\s)(?:d|dom|domain):("[^"]+"|[A-Za-z][\w-]*)( +[A-Za-z][\w-]*)?/gi,function(mm){
+    var key=mm[0].slice(mm[1].length, mm[0].length-(mm[3]||"").length);
+    var quoted=/^"/.test(mm[2]), one=mm[2].replace(/^"|"$/g,"");
+    var two=(!quoted && mm[3]) ? one+" "+mm[3].trim() : null;
+    var name=null, used=key.length;
+    if(two && known(two)){ name=known(two); used=mm[0].length-mm[1].length; }
+    else if(known(one)) name=known(one);
+    else if(quoted) name=cleanDomain(one);
+    else name=cleanDomain(one);
+    if(!name) return false;
+    if(!REALM[name]) REALM[name]=sectionRealm(state.items.indexOf(it))||"Personal";
+    it.domain=name; got.push(name);
+    return used;
+  });
+  cut(/(^|\s)(?:p|pri|priority):([123])\b/gi,function(mm){ it.imp=+mm[2]; got.push("p"+mm[2]); return true; });
+  cut(/(^|\s)(?:t|est|time):(\d+(?:\.\d+)?)(mins?|m|hrs?|h)?\b/gi,function(mm){
+    var n=parseFloat(mm[2]); if(!n) return false;
+    var mins=/^h/i.test(mm[3]||"") ? Math.round(n*60) : Math.round(n);
+    it.est=mins; got.push(fmtEst(mins)); return true;
+  });
+  cut(/(^|\s)(?:l|link|url):(\[[^\]]*\]\(\S+\)|\S+)/gi,function(mm){
+    var v=mm[2], md=/^\[([^\]]*)\]\((\S+)\)$/.exec(v), url=md?md[2]:v, title=md?md[1]:"";
+    if(!/^https?:\/\//i.test(url)){
+      if(!/^[\w-]+(\.[\w-]+)+([\/?#].*)?$/.test(url)) return false;   // not a web address
+      url="https://"+url;
+    }
+    it.link={url:url,title:title}; got.push("link"); return true;
+  });
+  cut(/(^|\s)(?:by|due|on):(\S+)/gi,function(mm){
+    var iso=parseWhen(mm[2]); if(!iso) return false;
+    it.due=iso; got.push("due "+fmtDue(iso)); return true;
+  });
+  return {text:t.replace(/\s{2,}/g," ").replace(/^\s+|\s+$/g,""), got:got};
+}
 
 function commitText(it,raw){
   var t=raw.replace(/\s+$/,"");
@@ -1613,6 +1809,15 @@ function commitText(it,raw){
     it.text=m[2];
     if(it.imp==null) it.imp=DEFAULT_IMP;
   } else { it.text=t; }
+  if(it.kind!=="head"){
+    var sh=shorthand(it,it.text);
+    if(sh.got.length){
+      it.text=sh.text;
+      if(it.kind!=="task"){ it.kind="task"; it.state=" "; }     // properties make it a task
+      if(it.imp==null) it.imp=DEFAULT_IMP;
+      toast(sh.got.join(" \u00b7 "));
+    }
+  }
   save();
   return before !== (it.kind+"|"+it.state);
 }
@@ -2088,7 +2293,10 @@ function buildDrawer(it){
   var dwrap=el("div","domrow full");
   var f1=el("div","f"); f1.appendChild(el("label",null,"Domain — type a new name to add it"));
   var dl=el("datalist"); dl.id="domlist";
-  domains().forEach(function(dn){ var o=el("option"); o.value=dn; dl.appendChild(o); });
+  // only tags that are actually on something, the same list the filter strip shows.
+  // Typing a new name still creates one.
+  var offer=usedDomains(); if(it.domain && offer.indexOf(it.domain)<0) offer=offer.concat(it.domain);
+  offer.forEach(function(dn){ var o=el("option"); o.value=dn; dl.appendChild(o); });
   var inp=el("input"); inp.setAttribute("list","domlist"); inp.value=it.domain||"";
   inp.placeholder="Alcedine, House, …"; inp.autocomplete="off"; inp.dataset.f="domain";
   inp.addEventListener("change",function(){ readDrawer(it); render(); });
