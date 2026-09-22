@@ -1873,7 +1873,9 @@ function onKey(ev,it,node){
     ev.preventDefault(); commitText(it,getText(node));
     var nk = (it.kind==="task" && !hard) ? "task" : "note";
     var n = nk==="task"
-      ? newTask({ text:"", domain:it.domain, depth: it.kind==="head" ? 0 : it.depth })
+      // A new line starts untagged. Carrying the tag over put one on lines that
+      // were never meant to have it, and a wrong tag is worse than typing d: again.
+      ? newTask({ text:"", depth: it.kind==="head" ? 0 : it.depth })
       : T({ kind:"note", state:" ", text:"", domain:null,
             depth: it.kind==="head" ? 0 : it.depth });
     var i=state.items.indexOf(it);
