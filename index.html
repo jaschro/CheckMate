@@ -303,6 +303,10 @@ body.grabbing main{padding-bottom:170px}
 /* ---------- matrix ---------- */
 .matrix{display:flex;gap:10px;margin-top:10px;align-items:stretch}
 .mcol{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:10px}
+/* p1 and p2 share the left column's full height, so the whole of each box is a
+   drop target. Left content-sized they left a tall dead strip under p2 that
+   looked droppable and wasn't. */
+.mcol>.quad{flex:1 1 auto}
 .matrix>.quad{flex:1 1 0;min-width:0}
 .quad.na{margin-top:10px}
 .quad.dropin,.grouphead.dropin{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
