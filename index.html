@@ -301,14 +301,18 @@ body.grabbing main{padding-bottom:170px}
 .hint{font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
 
 /* ---------- matrix ---------- */
-.matrix{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
-@media (max-width:560px){.matrix{grid-template-columns:1fr}}
+.matrix{display:flex;gap:10px;margin-top:10px;align-items:stretch}
+.mcol{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:10px}
+.matrix>.quad{flex:1 1 0;min-width:0}
+.quad.na{margin-top:10px}
+@media (max-width:560px){.matrix{flex-direction:column}}   /* stacked: p1, p2, p3, then na */
 .quad{border:1px solid var(--rule);border-radius:5px;background:var(--surface);padding:10px 11px;min-height:88px}
 .quad h3{margin:0 0 7px;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:500;display:flex;justify-content:space-between;gap:8px}
-.quad.do{border-left:2px solid var(--brick)}
-.quad.plan{border-left:2px solid var(--accent)}
-.quad.quick{border-left:2px solid var(--ochre)}
-.quad.later{border-left:2px solid var(--rule)}
+.quad.p1{border-left:2px solid var(--brick)}
+.quad.p2{border-left:2px solid var(--accent)}
+.quad.p3{border-left:2px solid var(--rule)}
+.quad.na{border-left:2px solid var(--rule-2)}
+
 .quad h3 em{font-style:normal;color:var(--ink-3);opacity:.7;text-transform:none;letter-spacing:0;font-family:var(--sans);font-size:11px}
 
 /* ---------- raw ---------- */
@@ -2512,25 +2516,35 @@ function viewPriority(main){
 }
 function viewMatrix(main){
   var open=tasks().filter(function(it){return it.state!=="x";});
+  // Four boxes, one per priority. p1 and p2 down the left, p3 and the unrated
+  // down the right, so the two that matter sit together.
   var quads=[
-    {cls:"do",   t:"Do now",   sub:"priority 1 · urgent",     f:function(it){return it.imp===1 && isUrgent(it);}},
-    {cls:"plan", t:"Schedule", sub:"priority 1 · not urgent", f:function(it){return it.imp===1 && !isUrgent(it);}},
-    {cls:"quick",t:"Fit in",   sub:"priority 2–3 · urgent",   f:function(it){return it.imp!==1 && isUrgent(it);}},
-    {cls:"later",t:"Someday",  sub:"priority 2–3 · not urgent", f:function(it){return it.imp!==1 && !isUrgent(it);}}
+    {cls:"p1", t:"p1", sub:"highest",         f:function(it){return it.imp===1;}},
+    {cls:"p2", t:"p2", sub:"high",            f:function(it){return it.imp===2;}},
+    {cls:"p3", t:"p3", sub:"regular",         f:function(it){return it.imp===3;}},
+    {cls:"na", t:"na", sub:"no priority set", f:function(it){return !it.imp;}}
   ];
-  var note=el("div","grouphead"); note.appendChild(el("span",null,"Importance × urgency"));
-  note.appendChild(el("span","n","urgency is computed from “by when”, never typed"));
+  var note=el("div","grouphead"); note.appendChild(el("span",null,"Priority matrix"));
+  note.appendChild(el("span","n",open.length+" open"));
   main.appendChild(note);
-  var grid=el("div","matrix");
-  quads.forEach(function(q){
-    var box=el("div","quad "+q.cls);
-    var h=el("h3"); h.appendChild(el("span",null,q.t)); h.appendChild(el("em",null,q.sub)); box.appendChild(h);
+  // Today down the left - p1 first, then p2 - with the long p3 list beside it,
+  // and the unrated in a band underneath where it stays out of the way.
+  function box(q){
+    var b=el("div","quad "+q.cls);
+    var h=el("h3"); h.appendChild(el("span",null,q.t)); h.appendChild(el("em",null,q.sub)); b.appendChild(h);
     var hit=open.filter(q.f);
-    if(!hit.length) box.appendChild(el("div","empty","—"));
-    else appendRows(box,hit);
-    grid.appendChild(box);
-  });
+    if(!hit.length) b.appendChild(el("div","empty","\u2014"));
+    else appendRows(b,hit);
+    return b;
+  }
+  var grid=el("div","matrix");
+  var today=el("div","mcol");
+  today.appendChild(box(quads[0]));
+  today.appendChild(box(quads[1]));
+  grid.appendChild(today);
+  grid.appendChild(box(quads[2]));
   main.appendChild(grid);
+  main.appendChild(box(quads[3]));
 }
 function viewList(main,filter,emptyMsg){
   var hit=tasks().filter(filter);
