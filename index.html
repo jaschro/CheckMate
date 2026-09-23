@@ -305,6 +305,7 @@ body.grabbing main{padding-bottom:170px}
 .mcol{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:10px}
 .matrix>.quad{flex:1 1 0;min-width:0}
 .quad.na{margin-top:10px}
+.quad.dropin,.grouphead.dropin{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
 @media (max-width:560px){.matrix{flex-direction:column}}   /* stacked: p1, p2, p3, then na */
 .quad{border:1px solid var(--rule);border-radius:5px;background:var(--surface);padding:10px 11px;min-height:88px}
 .quad h3{margin:0 0 7px;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:500;display:flex;justify-content:space-between;gap:8px}
@@ -444,9 +445,11 @@ pre.raw{margin:10px 0 0;padding:12px;background:var(--surface);border:1px solid 
       <dt><b>Ctrl</b> <b>&uarr;</b> <b>&darr;</b></dt><dd>move a line, and anything nested under it</dd>
       <dt><b>Ctrl</b> <b>&rarr;</b> <b>&larr;</b></dt><dd>indent, outdent</dd>
       <dt><b>Tab</b> <b>Shift+Tab</b></dt><dd>the same, while editing a line</dd>
+      <dt>drag a row</dt><dd>here it moves the line; in <b>Matrix</b> or <b>By priority</b> it changes the priority, in <b>By domain</b> the tag</dd>
     </dl>
     <dl class="touchonly">
       <dt>drag <b>&#8801;</b></dt><dd>move a line by hand</dd>
+      <dt>drag in a grouped view</dt><dd>in <b>Matrix</b> or <b>By priority</b>, drop a task in another box to change its priority; in <b>By domain</b>, to change its tag</dd>
       <dt>tap <b>&#8801;</b></dt><dd>buttons for indent, outdent and nudge</dd>
     </dl>
 
@@ -1515,9 +1518,10 @@ function buildRow(it){
   row.addEventListener("drop",function(ev){
     if(!dragId||dragId===it.id) return;
     ev.preventDefault();
-    var r=row.getBoundingClientRect();
-    moveTo(dragId, it.id, ev.clientY > r.top + r.height/2);
-    dragId=null; clearDrop(); render();
+    var r=row.getBoundingClientRect(), id=dragId;
+    dragId=null; clearDrop();
+    if(state.view==="doc"){ moveTo(id, it.id, ev.clientY > r.top + r.height/2); render(); }
+    else dropOnto(id, groupOf(it));
   });
 
   if(grabId===it.id) row.classList.add("grabbed");
@@ -1634,6 +1638,53 @@ function buildRow(it){
   }
   return row;
 }
+/* ---------- dropping ----------
+   In the Document a drag reorders the file. In a view that groups by something,
+   the file's order is not what you are looking at, so a drop changes the thing
+   the view groups by - the priority, or the tag - and leaves the file's order
+   alone. Anywhere else a drag has no meaning and says so. */
+function itemById(id){
+  for(var i=0;i<state.items.length;i++) if(state.items[i].id===id) return state.items[i];
+  return null;
+}
+function groupOf(it){
+  if(state.view==="prio"||state.view==="matrix") return {imp:it.imp||null};
+  if(state.view==="domain") return {domain:it.domain||null};
+  return null;
+}
+function dropOnto(dragId,target){
+  var d=itemById(dragId);
+  if(!d || !target){ toast("Move and indent work in the Document view"); return; }
+  if(d.kind!=="task"){ flash(dragId); return; }
+  if(target.hasOwnProperty("imp")){
+    if((d.imp||null)===(target.imp||null)) return;
+    snapshot("changing priority");
+    d.imp=target.imp||null;
+  } else if(target.hasOwnProperty("domain")){
+    if((d.domain||null)===(target.domain||null)) return;
+    snapshot("changing a tag");
+    d.domain=target.domain||null;
+    if(d.domain && !REALM[d.domain]) REALM[d.domain]="Personal";
+    adoptSection([d.id]);
+  } else return;
+  save(); render();
+}
+// a whole box or band heading takes a drop too, so an empty group is reachable
+function dropZone(node,target){
+  node.addEventListener("dragover",function(ev){
+    if(!dragId) return;
+    ev.preventDefault(); node.classList.add("dropin");
+  });
+  node.addEventListener("dragleave",function(){ node.classList.remove("dropin"); });
+  node.addEventListener("drop",function(ev){
+    if(!dragId) return;
+    ev.preventDefault(); ev.stopPropagation();
+    node.classList.remove("dropin");
+    var id=dragId; dragId=null; clearDrop();
+    dropOnto(id,target);
+  });
+}
+
 function chip(cls,label,it){ var b=el("button",cls,label);
   b.addEventListener("click",function(ev){
     if(state.selecting) return;                    // in Select mode a click picks the row
@@ -2493,6 +2544,7 @@ function viewGrouped(main){
   keys.forEach(function(k){
     var h=el("div","grouphead"); h.appendChild(el("span",null,k));
     h.appendChild(el("span","n","\u00b7 "+byDom[k].length));   // the realm is already on the pill above
+    dropZone(h,{domain: k==="— no domain" ? null : k});
     main.appendChild(h); appendRows(main,byDom[k]);
   });
 }
@@ -2510,6 +2562,7 @@ function viewPriority(main){
     var h=el("div","grouphead");
     h.appendChild(el("span",null,b[1]));
     h.appendChild(el("span","n", b[2]+" \u00b7 "+arr.length));
+    dropZone(h,{imp: b[0]==="0" ? null : +b[0]});
     main.appendChild(h);
     appendRows(main,arr);
   });
@@ -2531,6 +2584,7 @@ function viewMatrix(main){
   // and the unrated in a band underneath where it stays out of the way.
   function box(q){
     var b=el("div","quad "+q.cls);
+    dropZone(b,{imp: q.cls==="na" ? null : +q.t.slice(1)});
     var h=el("h3"); h.appendChild(el("span",null,q.t)); h.appendChild(el("em",null,q.sub)); b.appendChild(h);
     var hit=open.filter(q.f);
     if(!hit.length) b.appendChild(el("div","empty","\u2014"));
