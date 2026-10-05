@@ -88,6 +88,13 @@ async function commit(env, h, text) {
    spliced in: blocks the connector does not touch keep every byte they had. */
 
 const SLOT_RE = /^(?:\d{4}-\d{2}-\d{2}|[A-Z][a-z]{2})[T@]?\d{1,2}(?::\d{2})?(?:[ap]m?)?$/;
+
+// The day a task was finished, written on the line as "x@YYYY-MM-DD". The app
+// sweeps finished items a day later and reads that date, so anything ticked off
+// from here has to carry one. This clock is UTC and Jason's is not, so a late
+// evening tick can be stamped tomorrow - which costs the item one extra day on
+// the list, the harmless direction to be wrong in.
+const today = () => new Date().toISOString().slice(0, 10);
 const ID_RE = /(?:\s+|^)\^(\S+)\s*$/;
 const TABLE_RE = /^\s*<!--\s*domains:\s*(.*?)\s*-->\s*$/;
 
@@ -144,6 +151,7 @@ function blockFrom(ls, id, table) {
     if ((m2 = /\s+=(Work|Personal)$/.exec(rest))) { o.realm = m2[1]; rest = rest.slice(0, m2.index); go = true; continue; }
     if ((m2 = /\s+!([123])$/.exec(rest))) { o.imp = +m2[1]; rest = rest.slice(0, m2.index); go = true; continue; }
     if ((m2 = /\s+~([\d.]+[mh])$/.exec(rest))) { o.est = parseEst(m2[1]); rest = rest.slice(0, m2.index); go = true; continue; }
+    if ((m2 = /\s+x@(\d{4}-\d{2}-\d{2})$/.exec(rest))) { o.doneOn = m2[1]; rest = rest.slice(0, m2.index); go = true; continue; }
     if ((m2 = /\s+@(\d{4}-\d{2}-\d{2})$/.exec(rest))) { o.due = m2[1]; rest = rest.slice(0, m2.index); go = true; continue; }
     if ((m2 = /\s+>(\S+)$/.exec(rest)) && (m2[1] === "?" || SLOT_RE.test(m2[1]))) {
       if (m2[1] === "?") o.sched = true; else o.slot = m2[1];
@@ -186,6 +194,7 @@ function itemLines(it) {
     if (it.imp) bits.push("!" + it.imp);
     if (it.est) bits.push("~" + estToken(it.est));
     if (it.due) bits.push("@" + it.due);
+    if (it.state === "x" && it.doneOn) bits.push("x@" + it.doneOn);
     if (it.slot) bits.push(">" + String(it.slot).replace(/\s/g, ""));
     else if (it.sched) bits.push(">?");
     if (it.link) bits.push("[" + (it.link.title || "link") + "](" + it.link.url + ")");
@@ -323,6 +332,7 @@ function describe(doc, it, opts = {}) {
     if (it.slot) bits.push("booked " + it.slot);
     else if (it.sched) bits.push("marked to schedule");
     if (it.link) bits.push("link " + it.link.url);
+    if (it.state === "x" && it.doneOn) bits.push("finished " + it.doneOn);
     if (it.details && !opts.details) bits.push("has notes");
     head = pad + it.id + "  [" + (it.state || " ") + "] " + lines[0] + (bits.length ? "   · " + bits.join(" · ") : "");
   }
@@ -344,8 +354,10 @@ const INSTRUCTIONS =
   "estimate, due date and a mark asking for them to be scheduled. Every domain belongs to a realm, " +
   "Work or Personal. Items are grouped under headings, normally Work and Personal. Always call " +
   "checkmate_list before changing anything, and refer to items by their id (n12). To finish a task, " +
-  "set its status to done rather than deleting it: Jason keeps completed items on the list. Every " +
-  "change is saved as a new revision, and checkmate_undo reverses the last one.";
+  "set its status to done rather than deleting it - the list sweeps finished items away by itself a " +
+  "day later, so deleting is only for something that should never have been there. Finished items are " +
+  "left out of a listing unless you ask for them. Every change is saved as a new revision, and " +
+  "checkmate_undo reverses the last one.";
 
 const TOOLS = [
   {
@@ -528,7 +540,12 @@ const TOOLS = [
       } else {
         if (has("status")) {
           if (it.kind === "note") { it.kind = "task"; if (!it.imp) it.imp = 3; }
+          const was = it.state;
           it.state = STATE[a.status];
+          // The app sweeps finished items a day later and reads the date off the
+          // line, so a task ticked off from here has to carry one too.
+          if (it.state === "x") { if (was !== "x" || !it.doneOn) it.doneOn = today(); }
+          else it.doneOn = undefined;
         }
         const taskOnly = ["domain", "priority", "due", "estimate_minutes", "schedule", "slot", "details", "link"];
         if (it.kind === "note" && taskOnly.some(has)) throw new Error(a.id + " is plain text. Set a status first to make it a task.");
@@ -574,7 +591,7 @@ const TOOLS = [
     title: "Delete items",
     description:
       "Remove items from Jason's CheckMate list by id. To finish a task, use checkmate_update with " +
-      "status done instead: he keeps completed items. Deleting a heading or a parent leaves the items " +
+      "status done instead - the list sweeps it away by itself a day later. Deleting a heading or a parent leaves the items " +
       "under it in place. Every deletion can be reversed with checkmate_undo.",
     inputSchema: {
       type: "object",

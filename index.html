@@ -529,7 +529,7 @@ function newTask(props){
 function T(o){ if(!o.id) o.id=nid(); o.kind=o.kind||"task"; o.state=o.state||" ";
   o.domain=o.domain||null; o.imp=o.imp||null; o.est=o.est||null; o.due=o.due||null;
   o.link=o.link||null; o.details=o.details||""; o.slot=o.slot||null; o.sched=o.sched||false;
-  o.realm=o.realm||null; o.depth=o.depth||0; return o; }
+  o.realm=o.realm||null; o.depth=o.depth||0; o.doneOn=o.doneOn||null; return o; }
 
 var SEED = [
   T({kind:"head",text:"Inbox"}),
@@ -580,6 +580,17 @@ function fixDomain(){
    restores structure, properties and order together and cannot half-apply. */
 var UNDO_MAX=4;
 var undoStack=[];
+/* Every path that finishes a task goes through here, so the date it was finished
+   is recorded in exactly one place. Un-finishing clears it: an item put back on
+   the list is not waiting to be swept. */
+function setState(it,st){
+  if(it.kind!=="task") return false;
+  if(it.state===st) return false;
+  it.state=st;
+  it.doneOn = st==="x" ? (it.doneOn || isoDay(TODAY)) : null;
+  return true;
+}
+
 function snapshot(label){
   undoStack.push({text:serializeDoc(state.items), label:label||"change"});
   while(undoStack.length>UNDO_MAX) undoStack.shift();
@@ -632,7 +643,7 @@ function selDelete(){
 function selMark(st){
   var n=0;
   state.items.forEach(function(it){
-    if(state.sel[it.id] && it.kind==="task"){ it.state=st; n++; }
+    if(state.sel[it.id] && it.kind==="task" && setState(it,st)) n++;
   });
   save(); render();
   if(n) toast(n+" marked");
@@ -735,7 +746,9 @@ function pull(){
     var items=parseDoc(d.text||"");
     if(items.length) state.items=items;
     save(true);                         // cache locally, do not bounce it back up
+    var n=sweep();                      // ...unless the sweep found something, which does push
     setStatus("saved"); render();
+    if(n) toast(sweptMsg(n));
     return true;
   }).catch(function(){
     setStatus("offline"); render();     // the local cache is what you get
@@ -803,6 +816,26 @@ function settingsPanel(){
   var f2=el("div","f full"); f2.appendChild(el("label",null,"Token"));
   var i2=el("input"); i2.type="password"; i2.value=cfg.token; i2.placeholder="the SECRET_TOKEN you set on the Worker";
   i2.dataset.cf="token"; f2.appendChild(i2); g.appendChild(f2);
+
+  var f3=el("div","f full"); f3.appendChild(el("label",null,"Finished items"));
+  var sel=el("select");
+  [["0","go as soon as they are ticked"],
+   ["1","stay for a day, then go"],
+   ["7","stay for a week, then go"],
+   ["30","stay for a month, then go"],
+   ["off","stay on the list for good"]].forEach(function(o){
+    var op=el("option",null,o[1]); op.value=o[0]; sel.appendChild(op);
+  });
+  var cur=sweepDays();
+  sel.value = cur===null ? "off" : String(cur);
+  sel.addEventListener("change",function(){
+    setSweepDays(sel.value==="off" ? null : +sel.value);
+    try{ localStorage.removeItem("checkmate.swept"); }catch(e){}   // let the new window take effect now
+    var n=sweep(true);
+    state.settings=false; render();
+    toast(n ? sweptMsg(n) : "Saved");
+  });
+  f3.appendChild(sel); g.appendChild(f3);
   p.appendChild(g);
 
   var foot=el("div","dfoot");
@@ -885,6 +918,76 @@ function conflictPanel(){
   return p;
 }
 
+
+/* ---------- the daily sweep ----------
+   A finished task is worth seeing for a day, and after that it is clutter. So
+   the list deletes anything finished before today, once a day, when it is next
+   opened. The date rides in the file as "x@YYYY-MM-DD", which is what lets two
+   devices agree about what is old without either one keeping a clock.
+
+   Two rules keep it from eating something you wanted. A task already finished
+   when this first ran has no date, so it is given today's and survives a day -
+   switching the sweep on never clears a backlog you have not looked at. And a
+   task travels with whatever is indented under it, so a block goes only when
+   every task in it is finished and old enough. Undo reverses the whole sweep. */
+var SWEEP_DEFAULT=1;
+function sweepDays(){
+  try{ var v=localStorage.getItem("checkmate.sweep");
+       if(v==="off") return null;
+       if(v!==null && v!=="" && +v>=0) return +v; }catch(e){}
+  return SWEEP_DEFAULT;
+}
+function setSweepDays(v){
+  try{ localStorage.setItem("checkmate.sweep", v===null ? "off" : String(v)); }catch(e){}
+}
+function daysSince(iso){
+  var p=String(iso).split("-");
+  var d=new Date(+p[0],+p[1]-1,+p[2]);
+  return Math.round((TODAY-d)/86400000);
+}
+// the task at i, plus anything indented beneath it
+function groupEnd(i){
+  var d=state.items[i].depth||0, j=i+1;
+  while(j<state.items.length){
+    var x=state.items[j];
+    if(x.kind==="head" || (x.depth||0)<=d) break;
+    j++;
+  }
+  return j;
+}
+function sweep(force){
+  var today=isoDay(TODAY), touched=false;
+  state.items.forEach(function(it){
+    if(it.kind==="task" && it.state==="x" && !it.doneOn){ it.doneOn=today; touched=true; }
+  });
+  var days=sweepDays(), gone=[];
+  var last=null; try{ last=localStorage.getItem("checkmate.swept"); }catch(e){}
+  if(days!==null && (force || last!==today)){
+    for(var i=0;i<state.items.length;i++){
+      var it=state.items[i];
+      if(it.kind!=="task" || it.state!=="x") continue;
+      var end=groupEnd(i), all=true;
+      for(var j=i;j<end;j++){
+        var x=state.items[j];
+        if(x.kind!=="task") continue;                       // a note goes with its task
+        if(x.state!=="x" || !x.doneOn || daysSince(x.doneOn)<days){ all=false; break; }
+      }
+      if(!all) continue;
+      for(var k=i;k<end;k++) gone.push(state.items[k].id);
+      i=end-1;
+    }
+    try{ localStorage.setItem("checkmate.swept",today); }catch(e){}
+  }
+  if(gone.length){
+    snapshot(gone.length===1 ? "sweeping a finished item" : "sweeping "+gone.length+" finished items");
+    var out={}; gone.forEach(function(id){ out[id]=1; });
+    state.items=state.items.filter(function(it){ return !out[it.id]; });
+    touched=true;
+  }
+  if(touched) save();
+  return gone.length;
+}
+function sweptMsg(n){ return n===1 ? "1 finished item swept" : n+" finished items swept"; }
 
 /* ---------- persistence (per-viewer convenience only) ---------- */
 function save(quiet){ try{
@@ -1544,7 +1647,8 @@ function buildRow(it){
     g.textContent=markerFor(it);
     g.className="gutter"+(it.state==="x"?" s-x":it.state==="-"?" s-dash":"");
     g.title="cycle state";
-    g.addEventListener("click",function(){ it.state = it.state===" "?"-":it.state==="-"?"x":" "; save(); render(); });
+    g.addEventListener("click",function(){
+      setState(it, it.state===" "?"-":it.state==="-"?"x":" "); save(); render(); });
   } else if(it.kind==="note"){
     g.textContent="[ ]"; g.className="gutter ghost"; g.title="Make this a task";
     g.setAttribute("aria-label","Make this line a task");
@@ -1864,7 +1968,7 @@ function commitText(it,raw){
   var m=/^\[([ xX\-])\]\s+(.*)$/.exec(t);
   if(m && it.kind!=="head"){
     it.kind="task";
-    it.state=(m[1].toLowerCase()===" "?" ":m[1].toLowerCase());
+    setState(it, m[1].toLowerCase()===" " ? " " : m[1].toLowerCase());
     it.text=m[2];
     if(it.imp==null) it.imp=DEFAULT_IMP;
   } else { it.text=t; }
@@ -2662,6 +2766,7 @@ function serializeDoc(items){
       if(it.imp) bits.push("!"+it.imp);
       if(it.est) bits.push("~"+estToken(it.est));
       if(it.due) bits.push("@"+it.due);
+      if(it.state==="x" && it.doneOn) bits.push("x@"+it.doneOn);
       if(it.slot) bits.push(">"+it.slot.replace(/\s/g,""));
       else if(it.sched) bits.push(">?");
       if(it.link) bits.push("["+(it.link.title||"link")+"]("+it.link.url+")");
@@ -2745,6 +2850,7 @@ function blockFrom(ls,id){
     if((m2=/\s+=(Work|Personal)$/.exec(rest))){ o.realm=m2[1]; rest=rest.slice(0,m2.index); go=true; continue; }
     if((m2=/\s+!([123])$/.exec(rest))){ o.imp=+m2[1]; rest=rest.slice(0,m2.index); go=true; continue; }
     if((m2=/\s+~([\d.]+[mh])$/.exec(rest))){ o.est=parseEst(m2[1]); rest=rest.slice(0,m2.index); go=true; continue; }
+    if((m2=/\s+x@(\d{4}-\d{2}-\d{2})$/.exec(rest))){ o.doneOn=m2[1]; rest=rest.slice(0,m2.index); go=true; continue; }
     if((m2=/\s+@(\d{4}-\d{2}-\d{2})$/.exec(rest))){ o.due=m2[1]; rest=rest.slice(0,m2.index); go=true; continue; }
     if((m2=/\s+>(\S+)$/.exec(rest)) && (m2[1]==="?"||SLOT_RE.test(m2[1]))){
       if(m2[1]==="?") o.sched=true; else o.slot=m2[1];
@@ -2887,7 +2993,11 @@ loadCfg();
 var fromLink=takeSetupLink();
 render();
 if(configured()) pull().then(function(okd){ if(fromLink && okd) toast("Connected"); });
-else setStatus("local");
+else {
+  setStatus("local");
+  var swept0=sweep();                      // a list that lives only in this browser sweeps too
+  if(swept0){ render(); toast(sweptMsg(swept0)); }
+}
 
 document.getElementById("undo").addEventListener("click",undo);
 document.getElementById("selbtn").addEventListener("click",function(){
@@ -2932,7 +3042,8 @@ window.__cm = {
   freshen: function(){ return freshen(); },
   flagsOf: flagsOf, writeFlags: writeFlags,
   mdToRich: mdToRich, richToMd: richToMd, htmlToMd: htmlToMd, tsvToMd: tsvToMd,
-  moveTo: moveTo, moveItem: moveItem, realmOf: realmOf, render: function(){ render(); }
+  moveTo: moveTo, moveItem: moveItem, realmOf: realmOf, render: function(){ render(); },
+  sweep: sweep, sweepDays: sweepDays, setSweepDays: setSweepDays, setState: setState
 };
 })();
 </script>
